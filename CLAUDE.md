@@ -55,17 +55,12 @@ throwaway local repo; both passed, up to the PR step that needs a remote. Not ye
 trialled: the PR, CI and merge path, a fix round, and `close-out`, which wait for a real
 project.
 
-## Where this comes from
-
-The model was built and proven in client repositories. Those are the **source material**:
-read them, **never edit them**. Their paths, and everything else about the clients, are in
-`CLAUDE.local.md`, which is gitignored. This repo is public.
-
 ## Hard rules
 
-- **No client content anywhere in this repo.** No client names, domains, data or
-  paths, in the engine, the docs, the tests or a commit message; they go in
-  `CLAUDE.local.md` or `tests/client_terms.txt`, both gitignored. Everything specific to
+- **This repo is public. No client content anywhere in it.** No client names, domains,
+  data or paths, in the engine, the docs, the tests or a commit message. The boundary
+  test's forbidden words live in `tests/client_terms.txt`, which is gitignored; without
+  it the test skips. Everything specific to
   one project lives in that project's **profile** (`.claude/orchestration/project.toml`
   and `lenses/*.md`). Test: could a second, unrelated project use this file unchanged? If
   not, it belongs in a profile.

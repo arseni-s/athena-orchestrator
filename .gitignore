@@ -4,6 +4,6 @@ __pycache__/
 .env
 .env.*
 
-# Private, client-specific (see CLAUDE.local.md)
+# Private, never published
 CLAUDE.local.md
 tests/client_terms.txt
