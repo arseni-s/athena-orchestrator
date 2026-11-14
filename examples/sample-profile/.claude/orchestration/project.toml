@@ -1,0 +1,68 @@
+# Profile for Harbormaster, a fictional marina berth-booking app (Python API, server-rendered
+# pages, Postgres, hosted on Railway). Schema: docs/PROFILE.md in the athena-orchestrator repo.
+schema = 1
+
+[project]
+name = "Harbormaster"
+summary = "Berth booking for a small marina: boaters book berths online, staff run the dock from a tablet. A double booking or a wrong price is the failure that matters."
+
+[access]
+# "development": Claude deploys and writes to the platforms; destructive commands are denied.
+# "observe": after close-out, read-only. Only the user changes this line.
+phase = "development"
+
+[repo]
+main = "main"
+setup = ["docker compose up -d db"]
+gates = [
+  "uv sync --frozen",
+  "uv run ruff check .",
+  "uv run mypy harbormaster",
+  "uv run pytest -q",
+]
+architecture = ["docs/ARCHITECTURE.md"]
+
+[plan]
+read_at_start = ["docs/decisions/0001-orchestrated-development.md"]
+
+[rubric]
+user_visible = "a berth booked twice, a booking lost, or a wrong price shown or charged"
+conditions = [
+  "two boaters booking the same berth at once",
+  "a booking that spans midnight or a month end",
+  "a cancellation after payment",
+  "the payment provider timing out",
+  "an empty marina and a full one",
+]
+
+[deploy]
+test = "the Railway `test` environment, deployed automatically on every merge to main"
+prod = "the Railway `production` environment and its Postgres database"
+# Optional. Exit 0: clear. Exit 1: deploys are blocked (here: the marina's opening weekend).
+freeze_check = "uv run python scripts/freeze_check.py"
+
+[merge]
+required_check = "ci"
+
+[panel]
+full = ["H3", "H4"]
+
+[paths]
+full_panel = ["harbormaster/booking/", "harbormaster/pricing/", "migrations/"]
+design_review = ["harbormaster/booking/", "migrations/"]
+ops = ["migrations/", "scripts/", ".github/workflows/", "Dockerfile", "railway.*"]
+security = [
+  ".claude/",
+  ".github/workflows/",
+  "harbormaster/auth/",
+  "harbormaster/config.py",
+  ".env.example",
+  "pyproject.toml",
+  "uv.lock",
+]
+ux = ["harbormaster/templates/", "harbormaster/static/"]
+
+[docs]
+code = ["harbormaster/", "migrations/", "scripts/", ".claude/", "pyproject.toml", "Dockerfile"]
+docs = ["docs/**/*.md", "README.md", "CLAUDE.md", "AGENTS.md"]
+hint = "Update the matching docs/features/*.md file (a new area gets a new file and a line in docs/README.md)."

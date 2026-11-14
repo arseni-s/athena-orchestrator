@@ -1,0 +1,31 @@
+# CI for {{project_name}}. The job id is the check the merge guard waits for
+# (`merge.required_check` in .claude/orchestration/project.toml): rename both together.
+# Actions are pinned to commit SHAs, with the tag in a comment; bump SHA and comment together.
+name: ci
+
+on:
+  pull_request:
+    branches: [{{main}}]
+  push:
+    branches: [{{main}}]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  {{required_check}}:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      {{ci_setup}}
+
+      # One step per `repo.gates` command, in the same order.
+      - name: Gate
+        run: {{gate_command}}

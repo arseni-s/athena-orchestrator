@@ -1,0 +1,43 @@
+{
+  "description": "athena-orchestrator gates: the destroy gate, the ops gate with the merge guard, and the docs gate. Each command falls back to asking (or, at a stop, a warning) when the gate cannot run, so a missing Python never waves a command through. In bypass-permissions mode, where a question cannot reach the user, the fallback denies instead.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/run_hook.sh\" destroy_gate.py || { grep -qE '\"permission_mode\" *: *\"bypassPermissions\"' && d=deny || d=ask; echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"'$d'\",\"permissionDecisionReason\":\"DESTROY GATE could not run (athena-orchestrator needs Python 3.11+ on PATH, and Git Bash on Windows); review this call by hand. In bypass-permissions mode it is denied, because a question cannot reach the user.\"}}'; }",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/run_hook.sh\" ops_gate.py || { grep -qE '\"permission_mode\" *: *\"bypassPermissions\"' && d=deny || d=ask; echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"'$d'\",\"permissionDecisionReason\":\"OPS GATE could not run (athena-orchestrator needs Python 3.11+ on PATH, and Git Bash on Windows); review this call by hand. In bypass-permissions mode it is denied, because a question cannot reach the user.\"}}'; }",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/run_hook.sh\" docs_gate.py || { grep -qE '\"permission_mode\" *: *\"bypassPermissions\"' && d=deny || d=ask; echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"'$d'\",\"permissionDecisionReason\":\"DOCS GATE could not run (athena-orchestrator needs Python 3.11+ on PATH, and Git Bash on Windows); review this call by hand. In bypass-permissions mode it is denied, because a question cannot reach the user.\"}}'; }",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/run_hook.sh\" docs_gate.py || echo '{\"systemMessage\":\"DOCS GATE could not run (athena-orchestrator needs Python 3.11+ on PATH); check by hand that docs changed with code.\"}'",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

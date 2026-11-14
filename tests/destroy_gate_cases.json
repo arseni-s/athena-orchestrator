@@ -1,0 +1,2022 @@
+[
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway down"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "removes the latest deployment"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway down --yes -s web"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "with flags"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway delete --yes"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "deletes the project"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway service delete web"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "service delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway volume delete data"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "volume delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway volume rm data"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "rm alias"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway volume detach"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "detach"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway environment remove test"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "environment remove"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway domain delete live.example.org"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "domain delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway variables delete APP_KEY"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "variable delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway variable unset APP_KEY"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "variable unset"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway variables --remove APP_KEY"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "--remove flag"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway variables --unset APP_KEY"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "--unset flag"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway volume backup restore b1"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "a backup restore overwrites data"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway project transfer"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "transfer"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway bucket destroy b"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "destroy"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway cache purge"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "purge"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "./node_modules/.bin/railway down"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "a path to the program"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "& 'C:\\Users\\me\\AppData\\Roaming\\npm\\railway.ps1' down"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "PowerShell call operator and .ps1 shim"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "railway.cmd volume delete data"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": ".cmd shim"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "bash -c \"railway down\""
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: bash -c"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "pwsh -Command \"railway volume delete data\""
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: pwsh -Command"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "cmd /c railway down"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: cmd /c"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "eval \"railway service delete web\""
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: eval"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "echo data | xargs railway volume delete"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: xargs"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "xargs -I{} railway volume delete {} < volumes.txt"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: xargs -I{}"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "echo $(railway down)"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: $(...)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "echo `railway down`"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: backtick substitution"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "npx @railway/cli down"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: npx @railway/cli"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "pnpm dlx @railway/cli@latest volume delete data"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: pnpm dlx with a version"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rail\"way\" down"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: double-quote splicing"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rail'way' d'own'"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: single-quote splicing"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "rail`way down"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: PowerShell backtick"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "cmd /c rail^way do^wn"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: cmd caret"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Start-Process railway -ArgumentList volume,delete,data"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: Start-Process -ArgumentList"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Start-Process -FilePath railway -ArgumentList 'down','--yes'"
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "bypass: quoted argument list"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git commit -m \"docs: never run railway volume delete\""
+  },
+  "expect": "deny",
+  "rule": "railway-delete",
+  "note": "over-match accepted: a quoted mention; use git commit -F <file>"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway api 'mutation { serviceDelete(id: \"x\") }'"
+  },
+  "expect": "deny",
+  "rule": "railway-api",
+  "note": "railway api with a delete mutation"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway api 'mutation { volumeInstanceBackupRestore(volumeInstanceBackupId: \"b\") }'"
+  },
+  "expect": "deny",
+  "rule": "railway-api",
+  "note": "backup restore mutation"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl -X POST https://backboard.railway.app/graphql/v2 -H 'Content-Type: application/json' -d '{\"query\":\"mutation { volumeDelete(volumeId: \\\"v\\\") }\"}'"
+  },
+  "expect": "deny",
+  "rule": "railway-api",
+  "note": "curl to backboard with an inline body"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl -s https://backboard.railway.com/graphql/v2 --data '{\"query\":\"mutation { projectTransfer(id: 1) }\"}'"
+  },
+  "expect": "deny",
+  "rule": "railway-api",
+  "note": "backboard.railway.com, transfer"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl -X POST https://backboard.railway.app/graphql/v2 -d @{{DIR}}/mutation-body.json"
+  },
+  "expect": "deny",
+  "rule": "railway-api",
+  "files": {
+   "mutation-body.json": "{\"query\": \"mutation { environmentDelete(id: \\\"e\\\") }\"}"
+  },
+  "note": "body file with -d @file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl https://backboard.railway.app/graphql/v2 --data-binary @{{DIR}}/mutation-body.json"
+  },
+  "expect": "deny",
+  "rule": "railway-api",
+  "files": {
+   "mutation-body.json": "{\"query\": \"mutation { customDomainDelete(id: \\\"d\\\") }\"}"
+  },
+  "note": "body file with --data-binary @file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway api --input {{DIR}}/mutation.graphql"
+  },
+  "expect": "deny",
+  "rule": "railway-api",
+  "files": {
+   "mutation.graphql": "mutation { tcpProxyDelete(id: \"t\") }"
+  },
+  "note": "body file with --input"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Invoke-RestMethod -Uri https://backboard.railway.app/graphql/v2 -Method Post -InFile {{DIR}}/mutation-body.json"
+  },
+  "expect": "deny",
+  "rule": "railway-api",
+  "files": {
+   "mutation-body.json": "{\"query\": \"mutation { serviceDelete(id: \\\"s\\\") }\"}"
+  },
+  "note": "body file with -InFile"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl -X POST https://backboard.railway.app/graphql/v2 -d @{{DIR}}/missing-body.json"
+  },
+  "expect": "deny",
+  "rule": "gate error",
+  "note": "a body file that cannot be read denies (fails closed)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl -X POST https://backboard.railway.app/graphql/v2 -d @{{DIR}}/safe-body.json"
+  },
+  "expect": "none",
+  "rule": "",
+  "files": {
+   "safe-body.json": "{\"query\": \"query { me { name } }\"}"
+  },
+  "note": "a read-only body file (the ops gate still asks)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway api 'query { projects { edges { node { id } } } }'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a read-only railway api query"
+ },
+ {
+  "tool": "mcp__railway__delete-service",
+  "input": {
+   "serviceId": "s"
+  },
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "Railway MCP delete (also in permissions.deny)"
+ },
+ {
+  "tool": "mcp__railway__delete-volume",
+  "input": {
+   "volumeId": "v"
+  },
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "Railway MCP volume delete"
+ },
+ {
+  "tool": "mcp__claude_ai_Railway__volume-restore",
+  "input": {},
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "server name containing railway, restore"
+ },
+ {
+  "tool": "mcp__github__delete_file",
+  "input": {
+   "path": "x"
+  },
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "GitHub MCP delete"
+ },
+ {
+  "tool": "mcp__neon__delete_project",
+  "input": {},
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "Neon MCP delete"
+ },
+ {
+  "tool": "mcp__supabase__purge_cache",
+  "input": {},
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "Supabase MCP purge"
+ },
+ {
+  "tool": "mcp__postgres__drop_table",
+  "input": {},
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "Postgres MCP drop"
+ },
+ {
+  "tool": "mcp__github__transfer_repository",
+  "input": {},
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "GitHub MCP transfer"
+ },
+ {
+  "tool": "mcp__postgres__query",
+  "input": {
+   "sql": "DROP TABLE core.gift"
+  },
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "destructive SQL in the input of a database MCP tool"
+ },
+ {
+  "tool": "mcp__supabase__execute_sql",
+  "input": {
+   "query": "TRUNCATE\ncore.gift"
+  },
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "SQL across a newline"
+ },
+ {
+  "tool": "mcp__postgres__query",
+  "input": {
+   "sql": "select count(*) from core.gift"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a read through a database MCP tool"
+ },
+ {
+  "tool": "mcp__railway__list-services",
+  "input": {},
+  "expect": "none",
+  "rule": "",
+  "note": "Railway MCP read"
+ },
+ {
+  "tool": "mcp__claude_ai_Claude_Docs__delete",
+  "input": {},
+  "expect": "none",
+  "rule": "",
+  "note": "out of scope: not a listed provider"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql postgresql://u:p@monorail.proxy.rlwy.net:5432/railway -c \"DROP TABLE core.gift\""
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "rlwy.net host"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql postgres://u:p@postgres.railway.internal:5432/railway -c 'TRUNCATE core.gift'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "railway.internal host"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql postgresql://u:p@app-do-user-1.db.ondigitalocean.com:25060/app -c 'DELETE FROM app.campaign'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "DigitalOcean host"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" -c 'drop schema app cascade'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "DATABASE_URL variable"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "psql $env:DATABASE_URL -c 'DROP MATERIALIZED VIEW app.mv'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "PowerShell variable, materialized view"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$CORE_MIGRATE_URL\" -c 'ALTER TABLE core.gift DROP COLUMN amount'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "ALTER TABLE ... DROP"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$APP_DATABASE_URL\" -c 'UPDATE app.settings SET goal_cents = 0'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "UPDATE without WHERE"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$APP_DATABASE_URL\" -c 'UPDATE app.settings SET goal_cents = 0 WHERE campaign_id = 1'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "UPDATE with WHERE"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" -c 'UPDATE app.settings SET goal_cents = 0; SELECT 1 WHERE true'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "a WHERE after the next ; does not count"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "PGHOST=db.example.org psql -c 'DROP OWNED BY app_app'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "PGHOST variable, DROP OWNED"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway connect postgres <<'SQL'\nDROP DATABASE railway;\nSQL"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "railway connect with a heredoc"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway run psql -c 'DROP ROLE app_app'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "railway run"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway ssh -- psql -c 'DROP EXTENSION pgcrypto'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "railway ssh"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "PGHOST=x.db.ondigitalocean.com dropdb app"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "dropdb"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "dropuser -h monorail.proxy.rlwy.net app_app"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "dropuser"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "pg_restore --clean -d \"$DATABASE_URL\" dump.pgc"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "pg_restore --clean"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "pg_restore -c -d \"$DATABASE_URL\" dump.pgc"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "pg_restore -c"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "pg_restore -d \"$DATABASE_URL\" dump.pgc"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "pg_restore without --clean (the ops gate still decides)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" -f {{DIR}}/drop.sql"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "files": {
+   "drop.sql": "BEGIN;\nDROP SCHEMA app CASCADE;\nCOMMIT;\n"
+  },
+  "note": "SQL file with -f"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" --file={{DIR}}/drop.sql"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "files": {
+   "drop.sql": "TRUNCATE core.gift;\n"
+  },
+  "note": "SQL file with --file="
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" --file {{DIR}}/drop.sql"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "files": {
+   "drop.sql": "delete from core.gift;\n"
+  },
+  "note": "SQL file with --file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" < {{DIR}}/drop.sql"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "files": {
+   "drop.sql": "drop view app.v_name_feed;\n"
+  },
+  "note": "SQL file with <"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" -f {{DIR}}/read.sql"
+  },
+  "expect": "none",
+  "rule": "",
+  "files": {
+   "read.sql": "select count(*) from core.gift;\n"
+  },
+  "note": "a read-only SQL file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" -f {{DIR}}/missing.sql"
+  },
+  "expect": "deny",
+  "rule": "gate error",
+  "note": "a SQL file that cannot be read denies (fails closed)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" -c 'select * from core.gift where amount < 5'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a < comparison is not a file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql postgres://postgres@localhost:5432/test -c 'DROP SCHEMA app CASCADE'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed: destructive SQL against localhost"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql -h 127.0.0.1 -U postgres -c 'TRUNCATE core.gift'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed: destructive SQL against 127.0.0.1"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql -h localhost -f {{DIR}}/drop.sql"
+  },
+  "expect": "none",
+  "rule": "",
+  "files": {
+   "drop.sql": "DROP SCHEMA app CASCADE;\n"
+  },
+  "note": "a local SQL file is not read without a remote marker"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "doctl apps list"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a doctl read"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "wrangler deploy"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "not destructive (the ops gate asks)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl https://api.cloudflare.com/client/v4/zones"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a Cloudflare API read"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl -X DELETE https://api.github.com/repos/o/r/git/refs/heads/x"
+  },
+  "expect": "deny",
+  "rule": "http-delete",
+  "note": "GitHub API DELETE"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl -XDELETE https://backboard.railway.app/x"
+  },
+  "expect": "deny",
+  "rule": "http-delete",
+  "note": "Railway API DELETE, glued -X"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Invoke-WebRequest -Uri https://api.github.com/repos/o/r -Method DELETE"
+  },
+  "expect": "deny",
+  "rule": "http-delete",
+  "note": "PowerShell DELETE to GitHub"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "curl https://api.github.com/repos/o/r"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a GitHub API read"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "terraform plan"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a plan"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "terraform state list"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a state read"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --force origin master"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "force push to master"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push -f origin main"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "-f to main"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --force-with-lease origin HEAD:main"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "HEAD:main with a lease"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --force-if-includes origin refs/heads/master"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "refs/heads/master"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push origin +master"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "+ refspec"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push origin wp/x:+main"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "not a + refspec (the merge guard denies pushes to main)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push origin :master"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": ":master deletes it"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --delete origin main"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "--delete main"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push origin -d master"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "-d master"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git -C ../repo push -uf origin main"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "git -C and a short-flag cluster"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "git push --force origin master 2>&1 | Out-String"
+  },
+  "expect": "deny",
+  "rule": "git-main",
+  "note": "PowerShell with a pipe"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --force"
+  },
+  "expect": "deny",
+  "rule": "git-force-unnamed",
+  "note": "bare force push"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push -f origin"
+  },
+  "expect": "deny",
+  "rule": "git-force-unnamed",
+  "note": "no branch after the remote"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --force-with-lease"
+  },
+  "expect": "deny",
+  "rule": "git-force-unnamed",
+  "note": "a lease without a branch"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push -f origin HEAD"
+  },
+  "expect": "deny",
+  "rule": "git-force-unnamed",
+  "note": "HEAD is not a branch name"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --force --all"
+  },
+  "expect": "deny",
+  "rule": "git-force-unnamed",
+  "note": "--all names no branch"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --force-with-lease origin wp/x1-destroy-gate"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed: a lease force push that names a wp branch"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push --force-with-lease origin wp/main-cleanup"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a branch name containing main"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push origin --delete wp/x1-destroy-gate"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed: deleting a wp branch"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push -u origin wp/x1-destroy-gate"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a normal push"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git push origin main"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "no force: the ops gate's merge guard decides"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh repo delete o/r --yes"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "repo delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh repo archive o/r"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "repo archive"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh repo rename new-name"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "repo rename"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh repo transfer o/r other"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "repo transfer"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh repo edit o/r --visibility public --accept-visibility-change-consequences"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "visibility change"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh release delete v1.0.0 --yes"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "release delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh release delete-asset v1 file.zip"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "release delete-asset"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh secret delete CORE_REPO_TOKEN"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "secret delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh secret remove CORE_REPO_TOKEN"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "secret remove"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh variable delete CORE_TAG"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "variable delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh api -X DELETE repos/o/r/git/refs/heads/x"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "gh api -X DELETE"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh api --method DELETE repos/o/r/actions/caches"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "gh api --method DELETE"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh api graphql -f query='mutation { deleteRef(input: {refId: \"x\"}) { clientMutationId } }'"
+  },
+  "expect": "deny",
+  "rule": "gh-destroy",
+  "note": "gh api graphql delete mutation"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh api graphql -f query='query { repository(owner: \"o\", name: \"r\") { deleteBranchOnMerge } }'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a GraphQL query, not a mutation"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh pr merge 12 --squash --delete-branch"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed: a squash merge that deletes the PR branch (the merge guard decides)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh repo view o/r --json visibility"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a repo read"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh repo edit o/r --description x"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "an edit without --visibility"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "gh api repos/o/r/pulls"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a gh api read"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Write-Output $env:PATH"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "$env:NAME is not the env: drive"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "env NODE_ENV=test pnpm test"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "env as a launcher is not a dump"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "set -euo pipefail; pnpm lint"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "set with options is not a dump"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rg foo"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "plain rg skips hidden and ignored files"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rg foo src"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "rg over a source folder"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rg -uu TOKEN src"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "rg -uu over a folder without .claude"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rg -uu -g '!.claude' TOKEN"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "rg -uu that excludes .claude"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "grep -r foo src/"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "recursive grep of a source folder"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "grep foo file.ts"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "grep of one file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "grep -r --exclude-dir=.claude TOKEN ."
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "recursive grep that excludes .claude"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git ls-files | grep -n hook"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "grep of stdin"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git grep TOKEN"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "git grep searches tracked files only"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Get-ChildItem -Recurse src | Select-String TOKEN"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "Select-String over a source folder"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Get-ChildItem -Recurse -Include *.ts | Select-String TOKEN"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "an -Include that excludes the token file"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "C:\\DEV\\repo\\scripts\\cleanup.ts",
+   "content": "const q = `mutation { serviceDelete(id: $id) }`;"
+  },
+  "expect": "deny",
+  "rule": "write-mutation",
+  "note": "a script with a delete mutation"
+ },
+ {
+  "tool": "Edit",
+  "input": {
+   "file_path": "/repo/scripts/x.py",
+   "old_string": "a",
+   "new_string": "q = 'mutation { volumeDelete(volumeId: v) }'"
+  },
+  "expect": "deny",
+  "rule": "write-mutation",
+  "note": "Edit new_string"
+ },
+ {
+  "tool": "MultiEdit",
+  "input": {
+   "file_path": "/repo/scripts/x.py",
+   "edits": [
+    {
+     "old_string": "a",
+     "new_string": "ok"
+    },
+    {
+     "old_string": "b",
+     "new_string": "deploymentRemove"
+    }
+   ]
+  },
+  "expect": "deny",
+  "rule": "write-mutation",
+  "note": "MultiEdit, second edit"
+ },
+ {
+  "tool": "NotebookEdit",
+  "input": {
+   "notebook_path": "/repo/n.ipynb",
+   "new_source": "requests.post(url, json={'query': 'mutation { projectDelete(id: 1) }'})"
+  },
+  "expect": "deny",
+  "rule": "write-mutation",
+  "note": "NotebookEdit new_source"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "/repo/scripts/x.sh",
+   "content": "curl https://backboard.railway.app/graphql/v2 -d '{\"query\":\"mutation { webhookDelete(id: 1) }\"}'"
+  },
+  "expect": "deny",
+  "rule": "write-mutation",
+  "note": "any ...Delete next to backboard.railway"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "/repo/src/x.ts",
+   "content": "export function onDelete() {}"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a ...Delete name without backboard.railway"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "/repo/docs/x.md",
+   "content": "Never call serviceDelete or volumeDelete."
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "Markdown is exempt"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "/repo/db/migrations/app/0007_views.sql",
+   "content": "DROP VIEW IF EXISTS app.v_name_feed;\nCREATE VIEW app.v_name_feed AS SELECT 1;\n"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed: a migration with DROP VIEW"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "C:\\DEV\\repo\\.claude\\settings.json",
+   "content": "{}"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "settings.json"
+ },
+ {
+  "tool": "Edit",
+  "input": {
+   "file_path": "/repo/.claude/settings.local.json",
+   "old_string": "a",
+   "new_string": "b"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "settings.local.json"
+ },
+ {
+  "tool": "Edit",
+  "input": {
+   "file_path": "/repo/.claude/orchestration/project.toml",
+   "old_string": "deny",
+   "new_string": "allow"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "the gate itself"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rm .claude/orchestration/project.toml"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "shell rm of the gate"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "sed -i 's/deny/allow/' .claude/orchestration/project.toml"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "sed -i"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "echo {} > .claude/settings.json"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "redirect into settings.json"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Set-Content -Path .claude\\settings.json -Value '{}'"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "Set-Content"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Move-Item .claude\\orchestration\\project.toml x.py"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "Move-Item"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git checkout master -- .claude/settings.json"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "git checkout"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git restore .claude/orchestration/project.toml"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "git restore"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git mv .claude/orchestration/project.toml old.py"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "git mv"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "cp ../other/.claude/settings.json .claude/settings.json"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "cp"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "python -B .claude/orchestration/project.toml < event.json"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "running the gate by hand"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "python -B .claude/orchestration/project.toml < event.json 2>/dev/null"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a redirect to /dev/null is no write"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "cmp .claude/orchestration/project.toml ../other/.claude/orchestration/project.toml"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "comparing the copies"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git add .claude/settings.json .claude/orchestration/project.toml"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "staging is not a write"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway status"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway logs --service sync"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway list"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway up --service web"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed here (the ops gate and freeze decide)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway variables --set A=1"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed here (the ops gate decides)"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "railway status && rm -rf dist"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "rm in another segment is not a Railway delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rm -rf node_modules"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "always allowed"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "pnpm standby:down --stacks railway"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "down before the railway word"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "cat railway.json && grep -n down docs/RUNBOOK.md"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "railway.json is not the program"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "pnpm test"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "an ordinary command"
+ },
+ {
+  "tool": "WebFetch",
+  "input": {
+   "url": "https://example.org"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a tool the gate does not check"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" -c 'DELETE FROM app.campaign WHERE id = 7'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a delete with WHERE is not a bulk delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql \"$DATABASE_URL\" -c 'DELETE FROM app.campaign; SELECT 1 WHERE true'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "the WHERE belongs to the next statement"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical run --env=prod -- psql -c 'DROP TABLE app.gift'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "injected credentials: no host in the command, still remote"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical run -- psql -c 'update app.settings set goal = 1 where id = 2'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a scoped write through injected credentials is development work"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical run -- pnpm db:migrate"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "migrations run through the migrate command"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql postgres://app@db.internal.example.org/app -c 'TRUNCATE app.gift'"
+  },
+  "expect": "deny",
+  "rule": "sql-remote",
+  "note": "any host that is not local is remote"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "psql postgres://postgres:pw@localhost:5432/test -c 'TRUNCATE app.gift'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "user:password@localhost is local"
+ },
+ {
+  "tool": "Edit",
+  "input": {
+   "file_path": "/repo/.claude/orchestration/project.toml",
+   "old_string": "observe",
+   "new_string": "development"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "re-opening development is the user's decision"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "sed -i 's/observe/development/' .claude/orchestration/project.toml"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "the same from the shell"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "/repo/.claude/orchestration/lenses/ux.md",
+   "content": "# UX"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "lens files are not protected by this gate"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "doctl apps delete abc"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "platforms without rules here are not this gate's business"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "sh cleanup.sh"
+  },
+  "expect": "deny",
+  "rule": "script-run",
+  "note": "trial F4: a written script, then run",
+  "files": {
+   "cleanup.sh": "railway delete --yes\n"
+  }
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "bash -e ./deploy.sh"
+  },
+  "expect": "deny",
+  "rule": "script-run",
+  "note": "interpreter with a flag",
+  "files": {
+   "deploy.sh": "#!/bin/sh\nset -e\nrailway volume rm data\n"
+  }
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "./cleanup.sh"
+  },
+  "expect": "deny",
+  "rule": "script-run",
+  "note": "run directly",
+  "files": {
+   "cleanup.sh": "railway delete --yes\n"
+  }
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "source env.sh"
+  },
+  "expect": "deny",
+  "rule": "script-run",
+  "note": "sourced",
+  "files": {
+   "env.sh": "git push --force origin main\n"
+  }
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "pwsh -File clean.ps1"
+  },
+  "expect": "deny",
+  "rule": "script-run",
+  "note": "PowerShell -File",
+  "files": {
+   "clean.ps1": "railway delete --yes\n"
+  }
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "sh outer.sh"
+  },
+  "expect": "deny",
+  "rule": "script-run",
+  "note": "a script that runs a script",
+  "files": {
+   "outer.sh": "echo start\nsh inner.sh\n",
+   "inner.sh": "railway service delete web\n"
+  }
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "sh build.sh"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a script with nothing destructive",
+  "files": {
+   "build.sh": "railway up\npython -m unittest\n"
+  }
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "bash -c \"echo hi\""
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "-c is a string, not a file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "sh missing.sh"
+  },
+  "expect": "deny",
+  "rule": "gate error",
+  "note": "a script named to an interpreter that cannot be read"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "./missing-program --version"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "run directly and absent: a program, not checked"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "cleanup.sh",
+   "content": "railway delete --yes\n"
+  },
+  "expect": "deny",
+  "rule": "write-script",
+  "note": "trial F4: the script itself"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": ".github/workflows/release.yml",
+   "content": "steps:\n  - run: git push --force origin main\n"
+  },
+  "expect": "deny",
+  "rule": "write-script",
+  "note": "a workflow is a script"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "package.json",
+   "content": "{\"scripts\": {\"nuke\": \"railway delete --yes\"}}"
+  },
+  "expect": "deny",
+  "rule": "write-script",
+  "note": "npm scripts"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "tools/nuke",
+   "content": "#!/bin/sh\nrailway down\n"
+  },
+  "expect": "deny",
+  "rule": "write-script",
+  "note": "no extension, but a shebang"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "app/db.py",
+   "content": "url = os.environ['DATABASE_URL']\ncur.execute('TRUNCATE sessions')\n"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "application code is not a script: not over-matched"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "deploy.sh",
+   "content": "railway up\n"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a deploy script is fine"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "docs/runbook.md",
+   "content": "Never run `railway delete --yes`.\n"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "docs may name the commands"
+ },
+ {
+  "tool": "Edit",
+  "input": {
+   "file_path": "scripts/tidy.sh",
+   "new_string": "railway service delete web"
+  },
+  "expect": "deny",
+  "rule": "write-script",
+  "note": "an Edit's new text"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "Makefile",
+   "content": "nuke:\n\tdropdb $(DATABASE_URL)\n"
+  },
+  "expect": "deny",
+  "rule": "write-script",
+  "note": "a Makefile recipe"
+ }
+]

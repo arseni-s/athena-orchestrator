@@ -1,0 +1,12 @@
+{
+  "name": "athena-orchestrator",
+  "version": "0.4.1",
+  "description": "An orchestrator that runs a plan of work packages, delegates coding and single-lens review to subagents, logs every decision, and merges each package once you approve its summary.",
+  "author": {
+    "name": "Arsenii Schreider"
+  },
+  "homepage": "https://github.com/arseni-s/athena-orchestrator",
+  "repository": "https://github.com/arseni-s/athena-orchestrator",
+  "license": "MIT",
+  "keywords": ["orchestration", "code-review", "subagents", "workflow"]
+}

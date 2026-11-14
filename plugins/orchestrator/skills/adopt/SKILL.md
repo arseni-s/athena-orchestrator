@@ -1,0 +1,199 @@
+---
+name: adopt
+description: Set up a new or existing project for athena-orchestrator. It maps what the repo already has, asks only what it cannot infer, then writes the profile, the plan, the process docs, the PR template and CI from templates, never overwriting a file. Use when the user types /athena-orchestrator:adopt, or asks to set a project up for the orchestrator or /athena.
+argument-hint: "[path to the repo]  (default: the current repo)"
+---
+
+# Adopt a project
+
+You set a repository up so that the orchestrator (`athena-orchestrator:orchestrate`, typed as
+`/athena`) can run it. You write the files yourself: this is the bootstrap, done before
+the orchestrator exists in the project. The templates are in
+`${CLAUDE_PLUGIN_ROOT}/templates/`; their `README.md` lists each one, its target, and
+every `{{placeholder}}`. The profile format is the plugin's profile reference
+(`docs/PROFILE.md` in the plugin's repository).
+
+**The one rule: never overwrite.** A file that exists is kept as it is. You may append a
+missing section to it only when the user approved that in the mapping (step 3). When the
+project already has something in another place (an ADR folder, a plan, a CI workflow), you
+point the profile at it instead of creating a second one.
+
+## 1. Check where you are
+
+0. **Not in bypass-permissions mode.** Writing the profile and `.claude/settings.json`
+   asks the user first, and in bypass mode the gates deny those writes instead, because a
+   question cannot reach the user there. If the session is in that mode, ask the user to
+   leave it (Shift+Tab), and stop.
+1. Find the repo root: `git rev-parse --show-toplevel` in the argument's folder, or in
+   the current one. Not a git repo: stop, and offer `git init`.
+2. Check the profile: `python "${CLAUDE_PLUGIN_ROOT}/scripts/athena_profile.py" check`
+   in the repo root (`python3` where `python` is not Python 3.11+; neither: stop, the
+   gates need Python 3.11+).
+   - **Exit 0**: the project is adopted already. Run steps 2 and 3 only for what is
+     missing (lens files, templates whose targets do not exist, the `/athena` shortcut),
+     and never touch the profile.
+   - **Exit 1**: a profile exists but is invalid. Report its problems and stop: the user
+     fixes the profile, because only the user changes it.
+   - **Exit 2**: carry on.
+3. Check the working tree: `git status --porcelain`. Uncommitted changes: stop and ask the
+   user to commit or stash them first, so adopting lands as one reviewable commit. One
+   exception: `.claude/settings.json`, when its only change is the `enabledPlugins` entry
+   that `claude plugin install --scope project` writes. Keep it, and it goes into
+   adopt's commit with the settings merge (step 4.4).
+
+## 2. Survey (read only)
+
+Map what exists before you decide anything. Read; do not run builds, installs or anything
+that writes. Never read `.env` files.
+
+| Look for | Where | It decides |
+|---|---|---|
+| Hard rules and conventions | `CLAUDE.md`, `AGENTS.md`, `.claude/rules/`, `CONTRIBUTING.md` | `{{hard_rule}}`; whether both memory files exist |
+| What the project is | `README.md`, manifests, the code's top folders | `{{project_name}}`, `{{project_summary}}` |
+| Main branch | `git symbolic-ref --short refs/remotes/origin/HEAD`, else `git branch --show-current` | `{{main}}` |
+| Gate commands | `package.json` scripts, `pyproject.toml`, `Makefile`, `justfile`, `Cargo.toml`, `go.mod`, existing CI steps | `{{gate_command}}`, `repo.setup` |
+| A plan or backlog | `docs/`, `ROADMAP.md`, `TODO.md`, `PLAN.md` | `plan.plan`, and the first status rows |
+| ADRs | `docs/decisions/`, `docs/adr/`, `doc/adr/`, `docs/architecture/decisions/` | `plan.adrs`, `{{adr_number}}` |
+| Specs | `docs/work/`, `docs/specs/`, `specs/` | `plan.specs` |
+| Architecture docs | `docs/ARCHITECTURE.md`, `docs/architecture/`, published API contracts | `repo.architecture` |
+| CI | `.github/workflows/*.yml` and the job that runs the tests | `{{required_check}}`; whether `ci.yml` is written |
+| PR template | `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE/` | whether the template is written |
+| Hosting and deploys | `Dockerfile`, `railway.*`, `fly.toml`, `vercel.json`, `Procfile`, deploy scripts | `{{deploy_test}}`, `{{deploy_prod}}`, `paths.ops` |
+| Database and migrations | `migrations/`, `db/`, `alembic/`, `prisma/` | `paths.full_panel`, `paths.ops`, the event-table package |
+| User interface | `templates/`, `static/`, `src/components/`, `app/`, `pages/`, `frontend/` | `paths.ux`, and whether `ux.md` is needed |
+| Auth, config, secrets handling | `auth/`, `config.*`, `.env.example`, lockfiles | `paths.security` |
+| Claude settings | `.claude/settings.json`, `.claude/agents/`, `.claude/skills/` | the settings merge; names that could confuse |
+| The `/athena` shortcut | `~/.claude/skills/athena/SKILL.md` | step 6 |
+
+Decide which state the project is in: **new** (little or no code, no docs) or **existing**.
+For a new project every template applies. For an existing one, most decisions are a
+mapping.
+
+## 3. Ask, then present the mapping
+
+1. **Ask once.** Put every question you could not answer from the survey in one message
+   (use the question tool where you have one, at most four questions per call). Propose an
+   answer for each, so the user can just confirm. Typically:
+   - the one-line summary, and what a **user-visible bug** looks like here
+     (`rubric.user_visible`);
+   - the **realistic conditions** a bug shows up under (`rubric.conditions`);
+   - what a merge deploys to, and what counts as **production**;
+   - the **hard rules**: what must never happen;
+   - which code is **critical** (where a bug is visible or loses data:
+     `paths.full_panel`), and whether anything needs a **freeze check**.
+2. **Present the mapping**: one table, one row per template in the templates README, with
+   its target and one action:
+   - `create`: the target does not exist; it is written from the template;
+   - `map`: the project has it somewhere else; the profile points there (say which key);
+   - `append`: the file exists and lacks a section the orchestrator reads (for example
+     the plan's "Follow-up register" or "Access inventory", or the PR template's
+     sections); the section is appended, nothing else changes;
+   - `keep`: the file exists and works as it is;
+   - `skip`: not needed here (say why: no user interface, no database).
+
+   Below it: the profile you will write, in full, and the seed packages (step 4.6).
+3. **Wait for one approval** of the mapping. Apply the changes the user asks for. Do not
+   write anything before this approval. **This approval is the user's review of the
+   adoption**: everything that sets the rules (the profile, the settings, the ADR) is in
+   front of them now, so there is no second review of the commit afterwards. Say so
+   under the mapping, together with: "Approving also accepts the orchestration ADR, which
+   lets the orchestrator build, review and deploy on its own, and merge each package once
+   you approve its summary. Say if you want it left Proposed."
+
+## 4. Write
+
+Work in the repo's main checkout, on a new branch `adopt-athena-orchestrator` from the main
+branch. Writes go through the file tools, never a shell heredoc.
+
+1. **Fill every placeholder** from the survey and the answers. A value you still do not
+   have becomes a `TODO(adopt): <the question>` line, and goes in the report. No `{{`
+   placeholder is ever left in a file you write.
+2. **The profile**, `.claude/orchestration/project.toml`, from `project.toml`. Fill in the
+   `[paths]` and `[docs]` patterns from the survey: `docs.code` lists every folder with
+   behaviour, `docs.docs` every documentation path. Set a `[plan]` key only where the
+   project's path differs from the default. The destroy gate asks before this write:
+   that is expected; say so before you write. Then check it with the loader until it
+   exits 0.
+3. **Lens files** in `.claude/orchestration/lenses/`, from `lens.md`: `correctness.md`
+   always (the domain truth: its sources, what to check, five or so concrete inputs to
+   trace), and `ux.md` when `paths.ux` is not empty. Add `reliability.md` or another lens
+   only where the survey found something specific to say. Short: under 40 lines each.
+4. **Settings.** Merge `settings.json` into the project's `.claude/settings.json`: add
+   the `enabledPlugins` entry and the `PreToolUse` stub hook, and keep every key and hook
+   the file already has. Never replace the file. The destroy gate asks here too.
+5. **Documents**, each `create` or `append` from the mapping: `CLAUDE.md` (and
+   `AGENTS.md` byte-identical, when the project keeps both), the plan, `PROCESS.md`, the
+   ADR index, the spec template, the log index, the PR template, and `ci.yml` when the
+   project has no CI. CI gets one step per gate command, after the setup steps the
+   toolchain needs. The ADR (`adr-orchestrated-development.md`) takes the next free
+   number. Its status is `Accepted, <date> (by the user, approving the adoption)`, or
+   stays `Proposed` when the user said so: only the user accepts it, and the approval
+   is that acceptance.
+6. **Seed packages.** Replace the plan's example row with the rest of the bootstrap
+   (the orchestration model, section 13), one row and one short spec each, from the spec
+   template, with IDs that fit the plan's scheme:
+   - **access** (owner `human`): the access inventory, the secrets manager with
+     variables synced to every platform, project-scoped tokens, the database write role
+     that owns nothing and the read-only role. Its Verify steps prove each grant works
+     and is scoped;
+   - **docs and boundary tests** (owner `orchestrator`): the doc indexes list every doc,
+     links resolve, `CLAUDE.md` and `AGENTS.md` match, every ADR is indexed, and the
+     project's architectural boundaries are tests;
+   - **event table and heartbeat** (owner `orchestrator`, only when the project has a
+     database): copy `log_event.sql` next to its spec, as `<ID>-log_event.sql`, for the
+     implementer to start from;
+   - the user's own first packages, when they named any.
+
+## 5. Verify
+
+Run these and keep their real output for the report:
+1. the profile loader: exit 0;
+2. `git grep -n "{{[a-z_]*}}"` over the files you wrote: no hits (GitHub's `${{ ... }}`
+   in a workflow is not a placeholder);
+3. each `repo.gates` command once, in the repo root. A failing gate is not yours to fix:
+   report it, and it becomes the first package or an open question;
+4. `git diff --stat` against the main branch: only the files in the approved mapping
+   changed.
+
+Then commit on the `adopt-athena-orchestrator` branch: `Adopt athena-orchestrator` plus the list of
+created and appended files, and **land it on the main branch**: the user approved exactly
+this change in step 3, so they never merge it by hand.
+- **No remote**: `git switch <main>`, `git merge --ff-only adopt-athena-orchestrator`, then
+  delete the branch.
+- **A remote**: push the branch, open a PR (`gh pr create`) with the mapping as its body,
+  wait for its checks, then `gh pr merge --squash --delete-branch`, and pull the main
+  branch. The merge guard applies: if it or a check refuses, stop and report why; never
+  work around it.
+
+Either way, check afterwards that `git show <main>:.claude/orchestration/project.toml`
+works: the orchestrator refuses to run until the profile is on the main branch.
+
+## 6. The `/athena` shortcut
+
+Plugin skills are always namespaced, so the plugin ships a user-level shortcut that makes
+`/athena` work in every project. Copy `${CLAUDE_PLUGIN_ROOT}/shim/athena/SKILL.md` to
+`~/.claude/skills/athena/SKILL.md` when that file does not exist. When it exists:
+- it is the plugin's shim (its description starts with `athena-orchestrator shortcut`) and
+  differs from the plugin's copy: replace it with the plugin's copy, and say so;
+- otherwise it is the user's own `athena` skill: never touch it. Tell the user that
+  `/athena` is theirs, and that the orchestrator is `/athena-orchestrator:orchestrate`.
+
+## 7. Report
+
+One screen:
+- the project's state (new or existing) and the mapping as applied: created, mapped,
+  appended, kept, skipped;
+- the verify output from step 5, trimmed;
+- every `TODO(adopt)` line, with its file and question;
+- **what the user does next**, in order:
+  1. only if they left the orchestration ADR `Proposed`: accept it when ready (any
+     Claude session can mark it Accepted on their word), since the orchestrator will not
+     run before;
+  2. do the **access** package (owner `human`), and fill in the plan's access inventory;
+  3. make CI's check name match `merge.required_check`, and require it in the branch
+     protection of the main branch;
+  4. start a new Claude Code session in the repo, so the plugin's hooks load, and run
+     `/athena`.
+
+The orchestration model ends with a close-out: when active development ends,
+`/athena-orchestrator:close-out` revokes write access and moves the project to read-only.

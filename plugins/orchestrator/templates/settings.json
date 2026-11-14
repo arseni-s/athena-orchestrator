@@ -1,0 +1,19 @@
+{
+  "enabledPlugins": {
+    "athena-orchestrator@athena-orchestrator": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -qs '\"athena-orchestrator@' \"${CLAUDE_CODE_PLUGIN_CACHE_DIR:-$HOME/.claude/plugins}/installed_plugins.json\" || { grep -qE '\"permission_mode\" *: *\"bypassPermissions\"' && d=deny || d=ask; echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"'$d'\",\"permissionDecisionReason\":\"GATES MISSING: this project uses the athena-orchestrator plugin, but it is not installed, so the ops gate, merge guard and docs gate are not running. Install it (claude plugin install athena-orchestrator@athena-orchestrator), or review this call by hand. In bypass-permissions mode it is denied, because a question cannot reach the user.\"}}'; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

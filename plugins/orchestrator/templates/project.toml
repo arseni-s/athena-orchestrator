@@ -1,0 +1,57 @@
+# The athena-orchestrator profile for {{project_name}}. Schema: docs/PROFILE.md in the plugin's
+# repository. Only the user changes this file; the destroy gate asks before every edit.
+schema = 1
+
+[project]
+name = "{{project_name}}"
+summary = "{{project_summary}}"
+
+[access]
+# "development": Claude deploys and writes to the platforms; destructive commands are denied.
+# "observe": after close-out, read-only. Only the user changes this line.
+phase = "development"
+
+[repo]
+main = "{{main}}"
+# Commands run once per session before the gates (starting a local database, for example).
+setup = []
+# Install, lint, build, test and boundary checks, in order. One string per command.
+gates = ["{{gate_command}}"]
+# Architecture docs and published contracts (rung 3 of the decision ladder).
+architecture = []
+
+[plan]
+# The defaults match the templates: docs/IMPLEMENTATION_PLAN.md, docs/PROCESS.md,
+# docs/work, docs/decisions, docs/decisions/log. Set a key only where the project differs.
+read_at_start = ["docs/decisions/{{adr_number}}-orchestrated-development.md"]
+
+[rubric]
+user_visible = "{{user_visible}}"
+conditions = ["{{condition}}"]
+
+[deploy]
+test = "{{deploy_test}}"
+prod = "{{deploy_prod}}"
+# Optional: a command that exits 1 while nothing may deploy (a release window, an event).
+# freeze_check = "..."
+
+[merge]
+required_check = "{{required_check}}"
+
+[panel]
+# Package IDs that always get the full review panel.
+full = []
+
+[paths]
+# Path patterns: a trailing / is a folder, * stays within one segment, ** spans segments.
+full_panel = []
+design_review = []
+ops = [".github/workflows/"]
+security = [".claude/", ".github/workflows/", ".env.example"]
+# Empty: the project has no user interface, and the UX lens never runs.
+ux = []
+
+[docs]
+code = [".claude/"]
+docs = ["docs/**/*.md", "README.md", "CLAUDE.md", "AGENTS.md"]
+hint = "{{docs_hint}}"

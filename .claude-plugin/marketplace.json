@@ -1,0 +1,16 @@
+{
+  "name": "athena-orchestrator",
+  "owner": {
+    "name": "Arsenii Schreider"
+  },
+  "metadata": {
+    "description": "Marketplace for the athena-orchestrator orchestration plugin."
+  },
+  "plugins": [
+    {
+      "name": "athena-orchestrator",
+      "source": "./plugins/orchestrator",
+      "description": "An orchestrator that runs a plan of work packages, delegates coding and single-lens review to subagents, logs every decision, and merges each package once you approve its summary."
+    }
+  ]
+}

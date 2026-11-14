@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+
+# Private, client-specific (see CLAUDE.local.md)
+CLAUDE.local.md
+tests/client_terms.txt
