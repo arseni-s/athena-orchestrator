@@ -34,8 +34,8 @@ wherever it differs:
   it can only read. Destructive commands are denied in both, by `destroy_gate.py`.
 - **One freeze mechanism**: the optional `deploy.freeze_check` command. The engine knows
   no dates, deadlines or checkpoints.
-- **Platform rules cover Railway, git, gh and `docker push`** only. Add another
-  platform's rules when a project uses it.
+- **Platform rules cover Railway, git, gh, `docker push` and the Infisical CLI** only. Add
+  another platform's rules when a project uses it.
 - **The broker** ([docs/BROKER.md](docs/BROKER.md)) is a design note. Build it when a
   project needs it.
 - The reliability and UX lenses are general; a project's specifics go in its lens files.
@@ -44,6 +44,17 @@ wherever it differs:
   checked, flagged decisions, questions) and merges only on the user's "approved". A
   requested change is a fix round outside the round cap. `adopt` lands the adoption
   itself: approving its mapping is the review.
+- **Secrets and safeguards (15 Nov 2026)**, MODEL.md sections 12.3 and 12.6. Infisical is
+  the secrets manager the gates know: its commands that print values or a token are
+  denied, a secret or folder delete is denied, and the command an injector runs
+  (`infisical run --`, `railway run`, `railway ssh`) is read too. The agent has its own
+  read-only identity there, never the user's login. Every project's plan has a
+  "Safeguards" table: an off-platform backup with a tested restore, dependency installs
+  with a 7-day release age and no install scripts, a secret scan in CI, and that
+  identity. **No container for the agent and no credential broker by default**: both
+  were weighed, with Infisical Agent Vault (BROKER.md), and left for a project that
+  needs them. The two access phases stay, because the agent holds real tokens while it
+  develops.
 
 **Trial (step 10)**, recorded in [docs/TRIAL.md](docs/TRIAL.md). Run 1 drove the
 installed hooks with sample events and found `installed_plugins.json` at the stub's

@@ -22,7 +22,7 @@ You implement one work package. **Reliability beats features**, and a small, bor
 - Hard rules and accepted ADRs win over the spec and over your brief. If they conflict, stop and report it.
 - **Never** weaken, skip, focus (`.only`) or delete a test to get green. Never edit expected values to match output without proving the new values are right. Never fake or paraphrase gate or Verify output.
 - Update docs in the same change, as the repo's docs rule requires. If both `CLAUDE.md` and `AGENTS.md` exist, keep them byte-identical.
-- No new dependency unless the spec needs it; if you add one, name it and say why in your report.
+- No new dependency unless the spec needs it; if you add one, name it and say why in your report. Never switch off or bypass the package manager's release-age or install-script setting to get an install through, and never loosen the secret scan: if a version is too new or a package needs its install script, stop and report it.
 - Never write files through a shell heredoc (`cat <<EOF`); use the Write and Edit tools. A heredoc whose body contains its own terminator runs the rest as real commands; this once ran a production deploy three times. To test a gate or a classifier, import it in a test and pass commands as strings; never execute the command being tested.
 - Use only the access the plan's "Access inventory" lists, with credentials injected at runtime (for example `infisical run -- <command>`). You do not deploy: merging does that. If a hook denies a command or asks for the human, stop and report it; never work around a gate.
 - Never read `.env` files or print secret values. Fixtures are synthetic, never copied from real data.

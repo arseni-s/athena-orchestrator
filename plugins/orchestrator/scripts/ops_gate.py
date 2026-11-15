@@ -20,11 +20,18 @@ commands are not this gate's job: `destroy_gate.py` denies them in every phase.
                  denies; any other failure asks.
     deny         Commands that print secrets into the transcript: `printenv`, a bare `env`,
                  `set` or `export`, the PowerShell `env:` provider, `.env` files read by a
-                 reader (`cat`, `Get-Content`, `grep`, ...), Railway variable listings. This
-                 stops accidents, not a determined process (docs/MODEL.md section 12).
+                 reader (`cat`, `Get-Content`, `grep`, ...), Railway variable listings, the
+                 Infisical commands that show values or a token (`secrets`, `secrets get`,
+                 `export`, `user get token`, `login --plain`), and a one-line dump of the
+                 whole environment (`console.log(process.env)`, `print(os.environ)`). The
+                 command an injector runs is read too: `infisical run -- printenv`,
+                 `railway run env`, `railway ssh printenv`. This stops accidents, not a
+                 determined process (docs/MODEL.md section 12).
     ask          Commands the gate cannot read well enough to rule out a hidden merge or
                  push: an encoded PowerShell command, a shell reading commands from input,
                  a git or gh subcommand that is not built in, a ref named by a variable.
+                 Also an Infisical command that changes secrets, switches the login, or
+                 has no rule here.
 
 Without a profile (a project that has not adopted the plugin), every opinion above becomes
 "ask". With a profile that cannot be read or checked, every shell call asks.
@@ -116,8 +123,9 @@ NONE: Verdict = (None, None, None)
 
 def _program(word: str) -> str:
     """The program a word names: the base name without .exe/.cmd/.ps1/.bat, lower case."""
-    if re.fullmatch(r"@railway/cli(@\S*)?", word, re.IGNORECASE):
-        return "railway"
+    scoped = re.fullmatch(r"@(railway|infisical)/cli(@\S*)?", word, re.IGNORECASE)
+    if scoped:  # `npx @railway/cli up`, `npx @infisical/cli export`
+        return scoped.group(1).lower()
     base = re.split(r"[\\/]", word)[-1].lower()
     return re.sub(r"\.(exe|cmd|ps1|bat)$", "", base)
 
@@ -406,8 +414,66 @@ def docker(args: list[str]) -> Verdict:
     return NONE
 
 
-PROGRAMS = {"railway": railway, "git": git, "gh": gh, "docker": docker}
+# Infisical CLI, read from its command reference (`infisical <cmd>`, and the same commands
+# under `infisical secrets-manager`). Only the words before `--` are its own. A command that
+# shows values or a token is denied; one that changes secrets, switches the login or has no
+# rule here asks, so a new CLI command fails closed.
+INFISICAL_VALUE_FLAGS = frozenset({
+    "-e", "--env", "--projectId", "--path", "--token", "--domain", "--profile", "--org", "-t",
+    "--tags", "-f", "--format", "-o", "--output", "--output-file", "--type", "-l", "--log-level",
+    "--method", "--client-id", "--client-secret", "--watch-interval", "--access-bundle", "--ttl",
+    "--proxy", "-c", "--command",
+})
+INFISICAL_VALUES = "prints secret values from Infisical into the transcript"
+INFISICAL_TOKEN = "prints an Infisical token into the transcript"
+INFISICAL_CHANGE = ("changes secrets or folders in Infisical (the user does that, so no value "
+                    "passes through the session)")
+INFISICAL_LOGIN = "changes which Infisical login the session uses"
+INFISICAL_OTHER = "is an Infisical command the gate has no rule for (it may show or change secrets)"
+INFISICAL_SAFE = {"", "help", "version", "completion", "run", "scan", "init"}
+
+
+def infisical(args: list[str]) -> Verdict:
+    own = args[:args.index("--")] if "--" in args else args
+    pos = _positional(own, INFISICAL_VALUE_FLAGS)
+    flags = _flags(own)
+    if pos[:1] == ["secrets-manager"]:
+        pos = pos[1:]
+    top, sub, third = (pos + ["", "", ""])[:3]
+    if flags & {"profile", "org"}:
+        return _ask(INFISICAL_LOGIN)
+    if top in INFISICAL_SAFE or flags & {"h", "help"}:
+        return NONE  # what `run` runs is read by `_injected`
+    if top == "export":
+        return _guard(Secret(INFISICAL_VALUES))
+    if top == "secrets":
+        if sub in ("set", "create", "update"):
+            return _guard(Secret(INFISICAL_VALUES)) if "show-values" in flags else _ask(INFISICAL_CHANGE)
+        if sub == "delete":
+            return _ask(INFISICAL_CHANGE)
+        if sub == "folders":
+            return NONE if third in ("", "get", "list", "ls") else _ask(INFISICAL_CHANGE)
+        return _guard(Secret(INFISICAL_VALUES))  # a listing, `get`, `export`, anything else
+    if top == "folders":
+        return NONE if sub in ("", "get", "list", "ls") else _ask(INFISICAL_CHANGE)
+    if top == "login":
+        if "plain" in flags:
+            return _guard(Secret(INFISICAL_TOKEN))
+        return NONE if sub == "status" else _ask(INFISICAL_LOGIN)
+    if [top, sub, third] in (["user", "get", "token"], ["agent-vault", "sessions", "create"]) or top == "bootstrap":
+        return _guard(Secret(INFISICAL_TOKEN))
+    if [top, sub] == ["dynamic-secrets", "lease"] and third in ("create", "renew"):
+        return _guard(Secret("prints a dynamic secret's credentials into the transcript"))
+    if top in ("user", "profile", "org", "logout"):
+        return _ask(INFISICAL_LOGIN)
+    return _ask(INFISICAL_OTHER)
+
+
+PROGRAMS = {"railway": railway, "git": git, "gh": gh, "docker": docker, "infisical": infisical}
 PLATFORM_PROGRAMS = {"railway", "docker"}
+# Programs that run another command with secrets in its environment, and the subcommands
+# that do it. That command is read as well: `infisical run -- printenv`, `railway ssh env`.
+INJECTORS = {"infisical": ({"run"}, INFISICAL_VALUE_FLAGS), "railway": ({"run", "ssh"}, RAILWAY_VALUE_FLAGS)}
 
 # --- commands that print secrets (docs/MODEL.md section 12.3, rule 3) ----------------------
 # Kept out of PROGRAMS: these are everyday words (`set`, `head`, `type`), so the backstop
@@ -455,6 +521,10 @@ SECRET_PROGRAMS = {
     **{p: _reader for p in READERS}, **{p: _lister for p in LISTERS},
 }
 SECRET_API = re.compile(r"GetEnvironmentVariables\s*\(", re.IGNORECASE)
+# The whole environment printed by a one-liner: `console.log(process.env)`,
+# `print(dict(os.environ))`. One variable (`process.env.PORT`, `os.environ["X"]`) is not it.
+SECRET_DUMP = re.compile(r"(?:console\.\w+|print|pprint|JSON\.stringify|json\.dumps)\s*\(\s*(?:dict\s*\(\s*)?"
+                         r"(?:process\.env|os\.environ)\s*[),]")
 
 # --- reading a command line ---------------------------------------------------------------
 
@@ -818,6 +888,29 @@ def _run(found: Found) -> Verdict:
     return _ask(f"runs {found.prog} through xargs with arguments from input")
 
 
+def _injected(found: Found) -> Optional[str]:
+    """The command an injector runs (`infisical run -- <cmd>`, `railway ssh <cmd>`), as text
+    for the Bash reader; None when the call runs none."""
+    subs, value_flags = INJECTORS[found.prog]
+    args, i, seen = found.args, 0, False
+    while i < len(args):
+        word = args[i]
+        if word == "--":
+            return shlex.join(args[i + 1:]) or None if seen else None
+        if word.startswith("-"):
+            m = re.fullmatch(r"(?:-c|--command)(?:=(.*))?", word) if seen and found.prog == "infisical" else None
+            if m:  # `infisical run --command "a && b"`: a string a shell runs
+                return m.group(1) if m.group(1) is not None else " ".join(args[i + 1:i + 2]) or None
+            i += 2 if "=" not in word and word in value_flags else 1
+        elif not seen:
+            if word.lower() not in subs | {"secrets-manager"}:
+                return None
+            seen, i = word.lower() in subs, i + 1
+        else:
+            return shlex.join(args[i:])
+    return None
+
+
 def _backstop(seg: Segment, found: Optional[Found]) -> list[Verdict]:
     """An unquoted program word outside command position (`mywrap railway up`) asks. One
     followed by a path (`grep railway docs/RUNBOOK.md`) is a search term, not a command."""
@@ -848,6 +941,10 @@ def _programs(command: str, shell: str, depth: int = 0) -> list[Verdict]:
             verdicts += _programs(found.text, found.dialect, depth + 1)
         elif found and (found.prog in PROGRAMS or found.prog in SECRET_PROGRAMS):
             verdicts.append(_run(found))
+            inner = _injected(found) if found.prog in INJECTORS and not found.xargs else None
+            if inner:
+                found.covered = True  # its words are read as a command, not as mentions
+                verdicts += _programs(inner, "bash", depth + 1)
         elif found and found.prog in CHDIR_PROGRAMS:
             verdicts.append(_guard(Chdir()))
         elif found and found.prog in STDIN_SHELLS:
@@ -895,7 +992,7 @@ def _classify(command: str, shell: str) -> tuple[list[str], list[str], list[Guar
         guards.append("calls a PR merge API in a form the guard cannot check; use gh pr merge <n>")
     if RAILWAY_HOSTS.search(command):
         asks.append(Platform("connects to a Railway host directly"))
-    if SECRET_API.search(command):
+    if SECRET_API.search(command) or SECRET_DUMP.search(command):
         guards.append(Secret(SECRETS_PRINTED))
     return list(dict.fromkeys(deploys)), list(dict.fromkeys(asks)), list(dict.fromkeys(guards))
 

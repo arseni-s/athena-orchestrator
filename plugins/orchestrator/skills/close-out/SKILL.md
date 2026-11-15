@@ -43,6 +43,9 @@ steps 4 to 6, after the user says their steps are done.
      has a database), and at least one log channel the agent can read without a platform
      token: the app event table, or a log service with a read-only query token. Without
      one, the project would go blind: the missing piece becomes a package to finish first.
+   - **The backup is fresh**: when the plan's "Safeguards" table has a backup row, it is
+     `done` and a dump from the last day exists. A project is not closed out on a backup
+     nobody has seen.
 3. **Survey what the agent can reach**, to check the inventory against: the secrets
    manager's project and machine identity, platform tokens in the session's injected
    environment (names only: never print a value), CI secrets the agent set
@@ -60,8 +63,10 @@ On a new branch `wp/<ID>-close-out` from the main branch (the ID fits the plan's
    folder's `README.md`:
    - **Scope**: one checklist line per inventory row: the platform, the credential, the
      action (revoke, rotate, or keep read-only), who does it (the user), and how the
-     result is proved. Then the database: the write role loses its login (or is revoked)
-     and the read-only role is kept. Then the phase change.
+     result is proved. The agent's identity in the secrets manager is one of those rows:
+     its client secrets are revoked and the identity leaves the project, and the
+     launcher that used it is deleted. Then the database: the write role loses its login
+     (or is revoked) and the read-only role is kept. Then the phase change.
    - **Verify**: the steps in section 4, written out with this project's commands. Each
      one names the output that passes.
 3. **Log file** `<log folder>/<ID>.md`, from the log template: one decision of kind

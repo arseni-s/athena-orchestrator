@@ -64,12 +64,33 @@ it):
 
 - **One plan file** (default `docs/IMPLEMENTATION_PLAN.md`): a status table (ID, package,
   owner, depends on, target, status), open questions each with a safe default, a
-  follow-up register and an access inventory. The orchestrator picks the first `todo` row
-  whose dependencies are done, and never a row owned by `human`.
+  follow-up register, an access inventory and a safeguards table. The orchestrator picks
+  the first `todo` row whose dependencies are done, and never a row owned by `human`.
 - **One spec per package** (`docs/work/<ID>-<slug>.md`): goal, scope and what is out of
   it, **Verify** steps a machine can run, and the docs to update.
 
 Packages the size of one reviewable PR, with runnable Verify steps, go best.
+
+## Secrets and safeguards
+
+The agent works with real credentials while it builds, so the plugin limits what a
+mistake, a manipulated agent or a poisoned dependency can do with them:
+
+- **Secrets stay out of the session.** Commands get them at runtime from a secrets
+  manager (the gates know Infisical: `infisical run -- <command>`). The gates deny
+  commands that print them, including the secrets manager's own listing and export
+  commands. The agent uses its own read-only identity there, never your login.
+- **Destructive commands are denied**, even with your approval: deletes on the hosting
+  platform, the git host and the secrets manager, and destructive SQL on a remote
+  database. You run those yourself.
+- **Four safeguards per project**, tracked in the plan and set up by `adopt`'s first
+  packages: a backup the hosting platform cannot delete, with a tested restore;
+  dependencies installed only after a 7-day wait and without install scripts; a secret
+  scan in CI; and the agent's own identity in the secrets manager.
+
+The gates stop accidents, not a determined process: a program that was handed a secret
+can still print it. The reasoning, and what the plugin cannot do for you, is in
+[docs/MODEL.md](docs/MODEL.md), section 12.
 
 ## Docs
 

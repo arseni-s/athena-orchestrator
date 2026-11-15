@@ -36,9 +36,26 @@ When it merges, its rows are closed and new ones are added, in the same commit. 
 
 ## Access inventory
 
-One row per platform the agent works on. The agent has no access that is not listed here.
-Every grant and every revocation is a decision log entry. The close-out package
-(`/athena-orchestrator:close-out`) revokes or rotates each row and records its final status.
+One row per platform the agent works on, the secrets manager included: the agent's own
+identity there is a row like any other. The agent has no access that is not listed here.
+No row is an account-wide token, and each token has an expiry date where the platform
+offers one. Every grant and every revocation is a decision log entry. The close-out
+package (`/athena-orchestrator:close-out`) revokes or rotates each row and records its
+final status.
 
 | Platform | Used for | Credential | Scope | Injected by | At close-out | Status |
 |---|---|---|---|---|---|---|
+
+## Safeguards
+
+What still protects the project when a machine or a credential is compromised. A row is
+`done (<date>)` only with its proof, or `not needed: <reason>` (no database, so no
+backup). The orchestrator lists every other row in each session report. Switching one off
+needs the user's word.
+
+| Safeguard | How it is done here | Proved by | Status |
+|---|---|---|---|
+| A backup the platform cannot delete, with a tested restore | <where the dumps go, how often, and the credential that can add but not delete> | <the date of the last tested restore, and its output> | todo |
+| Dependencies installed late and without scripts | <the package manager; where its release-age (7 days) and install-script settings are set; CI installs from the lockfile> | <the command that prints the active settings, and its output> | todo |
+| Committed secrets are caught | <push protection on the git host; the scan step in CI> | <a CI run in which the scan ran> | todo |
+| The agent's own identity in the secrets manager | <its name; read-only; no production values; the access token's lifetime> | <its row in the access inventory> | todo |

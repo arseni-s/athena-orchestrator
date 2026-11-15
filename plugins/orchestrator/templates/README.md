@@ -43,7 +43,8 @@ orchestrator or a human fills in later, for each package or decision.
 | `{{date}}` | today, `YYYY-MM-DD` |
 | `{{adr_number}}` | the next free ADR number, four digits |
 | `{{lens}}` | the lens a lens file is for (`Correctness`, `Reliability`, ...) |
-| `{{ci_setup}}` | CI steps that install the toolchain the gates need |
+| `{{ci_setup}}` | CI steps that install the toolchain the gates need. Installs come from the lockfile only (`npm ci`, `pnpm install --frozen-lockfile`, `uv sync --locked`) |
+| `{{secret_scan}}` | the CI step that scans the pull request's commits for secrets (`infisical scan` or `gitleaks`), with the scanner installed at a pinned version, never `latest` |
 | `{{hard_rule}}` | one hard rule of the project; repeat for each |
 | `{{docs_hint}}` | `docs.hint` |
 

@@ -63,7 +63,7 @@ class Profile(unittest.TestCase):
 class MatchesTheSkill(unittest.TestCase):
     def test_plan_has_the_tables_the_skill_reads(self) -> None:
         plan = text("IMPLEMENTATION_PLAN.md")
-        for heading in ("Status", "Open questions", "Follow-up register", "Access inventory"):
+        for heading in ("Status", "Open questions", "Follow-up register", "Access inventory", "Safeguards"):
             with self.subTest(heading=heading):
                 self.assertIn(f"\n## {heading}\n", plan)
                 if heading != "Status":

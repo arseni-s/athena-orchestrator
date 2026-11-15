@@ -60,7 +60,7 @@ Where the records live. All optional.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `plan` | string | `docs/IMPLEMENTATION_PLAN.md` | Status table, open questions, follow-up register, access inventory. |
+| `plan` | string | `docs/IMPLEMENTATION_PLAN.md` | Status table, open questions, follow-up register, access inventory, safeguards. |
 | `process` | string | `docs/PROCESS.md` | The human-readable process. |
 | `specs` | string | `docs/work` | Folder of `<ID>-<slug>.md` package specs. |
 | `adrs` | string | `docs/decisions` | Folder of ADRs. |
@@ -189,7 +189,7 @@ throwaway local database to check SQL). Omit to allow none.
 | Gate | Needs the profile? | What it does |
 |---|---|---|
 | **Destroy gate** | no | Denies destructive commands in every phase (section 12 of MODEL.md has the list). Asks before any edit to `project.toml` or `.claude/settings*.json`. |
-| **Ops gate and merge guard** | yes | Phase rules, the freeze check, the merge guard, secret-printing denials. |
+| **Ops gate and merge guard** | yes | Phase rules, the freeze check, the merge guard, secret-printing denials (the Infisical CLI's own commands and whatever `infisical run` or `railway run` runs included). |
 | **Docs gate** | yes | `[docs]`. |
 
 How they behave when the profile is missing or broken. The gates fail closed, but a

@@ -96,6 +96,8 @@ first, every time, for:
 - changing a hard rule in `CLAUDE.md`, or the profile;
 - weakening a gate: hooks, CI, branch protection, tests, `[no-docs]` on a change with
   behaviour;
+- weakening a safeguard from the plan's "Safeguards" table: the package manager's
+  release-age or install-script setting, the secret scan, the backup job;
 - cutting a package;
 - an open question with no safe default;
 - deleting branches or worktrees it did not create;

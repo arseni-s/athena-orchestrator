@@ -84,6 +84,10 @@ going until nothing can start, a stop condition hits, or the user interrupts.
 3. **Follow-up register** (the plan's "Follow-up register" table): note every row whose
    target package is `done` but which is still open, and the `unscheduled` rows, for the
    session report.
+
+   **Safeguards** (the plan's "Safeguards" table): note every row that is not `done`, for
+   the same report. A plan with no such table was adopted before the table existed: say
+   so in the report, and that `/athena-orchestrator:adopt` appends it.
 4. **Pick**: the argument, or the first row that is `todo` and whose dependencies are all
    `done` (or that its spec explicitly allows to start early). Never pick rows whose owner
    is `human`; the user does those. If nothing can start, report what blocks each
@@ -242,6 +246,8 @@ Never do these on your own. Say what will change and why, then wait:
   `access.phase` above all;
 - weakening a gate: hooks, CI, branch protection, skipping or deleting tests, `[no-docs]`
   on a change with behaviour;
+- weakening a safeguard: switching off or bypassing the package manager's release-age or
+  install-script setting, the secret scan, or the backup job;
 - cutting a package from scope;
 - an open question with **no safe default** in the plan;
 - deleting branches or worktrees you did not create;
@@ -368,5 +374,7 @@ Reply "approved" to merge it, ask a question, or say what to change.
 - platform and production changes made this session, one line each;
 - status corrections made;
 - follow-up register: open rows whose target is `done`, and the `unscheduled` rows;
+- safeguards: each row of the plan's "Safeguards" table that is not `done`, with what is
+  missing. An open backup row comes first: until it is done, a lost database stays lost;
 - what the user must do next: the pending asks from section 6, `human` rows that block
   others, open questions due soon, packages past their target date.

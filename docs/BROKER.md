@@ -78,6 +78,34 @@ sends. Close-out switches it to observe; from then on the write operations answe
 - **A compromised broker.** It holds the powerful token, so it is kept small, has no
   inbound path except its own API, and its token is rotated at close-out like any other.
 
+## An existing product: Infisical Agent Vault (weighed 15 Nov 2026, not adopted)
+
+Infisical ships a credential proxy for AI agents that does most of what this note
+describes. The agent holds placeholders and a session token; a proxy outside its reach
+attaches the real credential to each outgoing request. HTTP services take allow-lists of
+methods and path prefixes, a hook server can allow or deny a request after reading its
+body, databases are reached through a local port with no password, sessions expire, and
+every request is logged. Before building a broker, evaluate it first: what would be left
+to write is a hook that tells one platform's GraphQL operations apart, and one access
+bundle per phase.
+
+Why it is not the default:
+
+- **It needs the agent kept apart from the proxy.** A proxy on the agent's machine keeps
+  its token where the agent can read it, and any CLI that is logged in on that machine
+  goes round the proxy. In practice the agent runs in a container, or the proxy on a
+  second machine. The model's default has neither (MODEL.md section 12.6).
+- **It answers a less common threat.** It stops an agent from leaking or being talked out
+  of a credential. A poisoned dependency or malware on the same machine is not stopped by
+  it, and those are more common.
+- **An allowed operation is still allowed.** In a session that may write, a manipulated
+  agent can deploy or write to the database through the proxy. Scoped credentials, the
+  database roles and review still carry that.
+- **It was in preview**, priced by brokered request, with terms that could change.
+
+Revisit when a project already runs its agent in a container or a cloud sandbox, when a
+client requires that the agent holds no credential, or when the product has settled.
+
 ## When to build it
 
 - **At a project's first close-out**, if the user wants the agent to keep reading

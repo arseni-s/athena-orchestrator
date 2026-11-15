@@ -383,6 +383,8 @@ waits:
 - changing a hard rule, or the profile, the access phase above all;
 - **weakening a gate**: hooks, CI, branch protection, skipping or deleting tests,
   bypassing the docs gate;
+- **weakening a safeguard** (section 12.6): switching off or bypassing the package
+  manager's release-age or install-script setting, the secret scan, or the backup job;
 - cutting a package from scope;
 - an open question with **no safe default**;
 - deleting branches or worktrees it did not create;
@@ -510,7 +512,7 @@ the human leaves bypass mode to approve the call, or does it by hand.
 | **Docs gate** | PreToolUse + Stop hook | A commit or a session end with behaviour changes but no doc changes is blocked (explicit, reviewable opt-out marker only). |
 | **Docs tests** | test suite | Indexes list every doc, links resolve, mirrored files are byte-identical, every ADR is indexed. |
 | **Destroy gate** | PreToolUse hook on shell, edit and MCP tools | Destructive commands are denied in every phase (the list is in section 12.2). Edits to the profile or the agent settings ask first, so a session cannot switch a gate off or re-open development by itself. Needs no configuration. |
-| **Ops gate** | PreToolUse hook on shell tools | Development phase: deploys and platform commands run; a deploy while the project's freeze check blocks → deny. Observe phase: deploys, merges and platform changes → deny. Both: commands that print secrets → deny; commands it cannot read well enough to rule out a hidden merge or push → ask. |
+| **Ops gate** | PreToolUse hook on shell tools | Development phase: deploys and platform commands run; a deploy while the project's freeze check blocks → deny. Observe phase: deploys, merges and platform changes → deny. Both: commands that print secrets → deny, including the secrets manager's own listing and export commands and whatever an injector runs (`infisical run -- printenv`); commands it cannot read well enough to rule out a hidden merge or push → ask. |
 | **Merge guard** | the same hook | `merge` is denied unless every check on the PR head passed; auto-merge is denied; direct pushes to main are denied. It also covers **aliases, extensions and API endpoints** that reach the same action, and non-built-in subcommands go to the human. |
 | **CI** | the CI provider | Lint, build, tests, docs tests and boundary tests on every PR; actions pinned to SHAs. |
 | **Boundary tests** | test suite | Architectural boundaries (e.g. "module X never imports Y", "no client-specific names in the generic core") are tests, not just advice. |
@@ -564,6 +566,8 @@ on the server, where no prompt injection reaches; the rest are on the agent's ma
      ... DROP, `dropdb`, a restore that cleans first. A local database is not covered;
    - deleting, archiving, renaming or transferring the repository; deleting releases,
      secrets or variables; a force push or delete of the main branch;
+   - deleting a secret or a folder in the secrets manager: a sync carries the delete to
+     every platform, and the app starts without it;
    - writing a file that holds a platform delete mutation, or a script (shell, PowerShell,
      batch, CI YAML, Makefile, package.json, any `#!` file) that holds anything above;
    - running a script that holds anything above (`sh x`, `bash x`, `source x`, `./x`,
@@ -573,7 +577,8 @@ on the server, where no prompt injection reaches; the rest are on the agent's ma
    It also asks before any edit to the profile or the agent settings, so a session cannot
    switch a gate off or re-open development by itself.
 5. **The ops gate.** In the observe phase it denies deploys, merges and platform changes.
-   In both phases it denies commands that print secrets.
+   In both phases it denies commands that print secrets, and asks before a command that
+   changes a secret or switches the secrets manager's login.
 6. **Secrets never enter the session** (rule 3 below). A manipulated agent cannot leak a
    key it never saw.
 
@@ -593,15 +598,37 @@ server-side layers come first.
    listed there. Every grant and every revocation is a decision log entry.
 2. **Isolate every credential to one project.** A leaked or misused token must never
    reach another project. Use project- or environment-scoped tokens. A tool that only
-   works with an account-wide token is not used: pick another route. Keep one
-   secrets-manager project and one machine identity per project.
+   works with an account-wide token is not used: pick another route. Give every token an
+   expiry date where the platform offers one. Keep one secrets-manager project and one
+   machine identity per project.
+
+   **The agent has its own identity in the secrets manager, never the human's login.** A
+   secrets manager puts every secret behind one login, so that login is the most valuable
+   credential there is. The agent's machine identity is therefore:
+   - **read-only** (in Infisical, the built-in Viewer role): the human adds and changes
+     secrets, so no value passes through the session;
+   - **kept away from production values.** The agent never needs them: deploys get them
+     through the sync. Where the plan cannot limit an identity to an environment, the
+     production secrets live in a second secrets-manager project that the agent's
+     identity is not a member of;
+   - **short-lived in the session.** Its long-lived client secret stays in the human's
+     password manager. The human starts the agent from a launcher that swaps it for an
+     access token of a few hours, and only that token reaches the session;
+   - **an inventory row**, revoked at close-out like any other.
+
+   The human keeps no admin session of the secrets manager's CLI on the machine the agent
+   runs on: the agent runs as the same operating-system user, so it could use it.
 3. **Secrets never enter the transcript.** Inject them into the process at runtime
    through the secrets manager's CLI (for example `infisical run -- <command>`). Never
-   paste values, and never let the agent read `.env` files. Anything that appears in the
-   context is stored in session transcripts on disk and may be passed to subagents. The
-   ops gate denies commands that print secrets (`env`, `printenv`, platform "list
-   variables" commands, `cat .env`). Limitation: this stops accidental exposure, not a
-   determined process. Rotation at close-out is the backstop.
+   paste values, never keep real values in `.env` files, and never let the agent read
+   one. Anything that appears in the context is stored in session transcripts on disk and
+   may be passed to subagents. The ops gate denies commands that print secrets: `env`,
+   `printenv`, `cat .env`, platform "list variables" commands, the secrets manager's own
+   listing, export and token commands, a one-line dump of the whole environment, and any
+   of these run through an injector (`infisical run -- printenv`, `railway run env`).
+   Limitation: this stops accidental exposure, not a determined process. A program that
+   was handed a secret can still print it, and no gate reads what a program does.
+   Rotation at close-out is the backstop.
 4. **Three database roles.** A **migration role** owns the schema and is used only by the
    migrate command. A **write role** for the agent in development: reads and writes
    rows, owns nothing. A **read-only role** for observe, which:
@@ -647,6 +674,8 @@ server-side layers come first.
 | DB app role | never | never | yes |
 | DB read-only role | yes | yes | — |
 | Platform token (project-scoped) | yes, injected at runtime | never | — |
+| Secrets-manager identity (read-only, no production values) | yes, as a short-lived token | never (revoked) | — |
+| Backup storage credential (can add, cannot delete) | never | never | the backup job only |
 | Broker token, if there is a broker | yes | yes (read operations only) | — |
 | Log sink, read-only query token | yes | yes | — |
 | Log sink, ingest token | never | never | yes |
@@ -677,6 +706,46 @@ Use two channels, because each one covers the other's blind spot:
     with the git host's CLI;
   - the heartbeat row: when it stops, the app is down and the human checks the platform.
 
+### 12.6 Safeguards every project has
+
+The layers above limit what the agent can do. These four limit what anything else can do
+with the agent's machine and credentials: a poisoned dependency, malware that collects
+every credential it finds, or a plain mistake with a credential that was too powerful.
+Those are the common ways a small team loses data (section 14). The plan has a
+"Safeguards" table with one row for each, and what proves it.
+
+1. **A backup the platform cannot delete, with a tested restore.** A scheduled dump of
+   each database goes to storage at another provider, written with a credential that can
+   add files and cannot delete them. A platform's own backups do not count: they can go
+   in the same call that deletes what they protect. One restore into a scratch database
+   is done and recorded, because an untested backup is a guess. No gate and no rule
+   replaces this: it is the only safeguard that still works after the damage is done.
+2. **Dependencies are installed late and without scripts.** The package manager waits
+   before it installs a newly published version (a minimum release age of 7 days), does
+   not run dependencies' install scripts, and installs from the lockfile only in CI. A
+   poisoned release is usually found and pulled within hours, so a build that waits never
+   installs it. Nobody switches these off to get a build through: a package that needs
+   its install script is allowed by name.
+3. **Committed secrets are caught before they land.** The git host's push protection is
+   on, and CI scans every pull request's commits for secrets. A secret that reached a
+   commit is rotated, whatever happens to the commit.
+4. **The agent's own identity in the secrets manager** (12.3, rule 2): read-only, away
+   from production values, short-lived in the session.
+
+**What the engine cannot enforce** is the human's own machine and accounts, where the
+same threats arrive: a passkey or hardware key on the email account, the git host, the
+hosting platform, the secrets manager and the domain registrar; a password manager
+instead of passwords saved in the browser; a standard, non-administrator user for daily
+work; and a repository from an unknown source opened in a cloud development environment
+or the editor's restricted mode, never trusted straight away.
+
+**Not part of the default: a container for the agent, and a credential broker.** Both
+were weighed (15 Nov 2026). A container per project limits a poisoned dependency to that
+project, and a broker (12.2, layer 2) keeps real credentials out of the agent's
+environment. Each costs setup and a changed daily workflow, and a broker only keeps its
+promise when the agent already runs in a container. The four safeguards above cover the
+more common threats for less. A project that needs more adds them: [BROKER.md](BROKER.md).
+
 ---
 
 ## 13. Adapting the model to a new project
@@ -706,6 +775,7 @@ in `project.toml`, lens knowledge in `lenses/*.md`, hard rules in `CLAUDE.md`.
 | Model tiers | Which roles get the strongest model? Keep the verifier strong. |
 | Budgets | Tool-call budgets and the heavy tools each lens may use. |
 | Access inventory | Which platforms does the agent work on? How is each credential scoped to this one project? Which can the secrets manager rotate, and which need a manual step? When does active development end? |
+| Safeguards | Where does the off-platform backup go, and who tested a restore? Which package manager, and how are its release-age and install-script settings set? Which secret scan runs in CI? |
 | Observability | Which schemas can the read-only role see, and which are PII? What goes in the event table? Is there a log sink with read-only tokens? |
 
 **Bootstrap order** (each step is itself a work package, done the manual way before the
@@ -714,9 +784,11 @@ orchestrator exists):
    questions and the follow-up register; an ADR index; a spec template with a Verify
    section.
 2. Access: the access inventory, the secrets manager with environment variables synced
-   to every platform, project-scoped tokens, the database roles (a write role without
-   ownership, a read-only role), and runtime injection for every command that needs a
-   secret.
+   to every platform, the agent's own read-only identity in it, project-scoped tokens,
+   the database roles (a write role without ownership, a read-only role), and runtime
+   injection for every command that needs a secret. With it, the safeguards of 12.6: the
+   off-platform backup and its tested restore, the dependency install settings, and the
+   secret scan.
 3. The plugin enabled at project scope, and the profile: the access phase, gate commands,
    panel paths, environments, the docs gate patterns and the lens files. The plugin's
    gates enforce what the profile sets.
@@ -733,9 +805,10 @@ orchestrator exists):
 The plugin's `adopt` skill (`/athena-orchestrator:adopt`) does steps 1, 3 and 5, and CI from
 step 4, from templates. It maps what an existing project already has instead of
 overwriting it, asks once for what it cannot infer, and writes nothing before the user
-approves its mapping. The rest of the bootstrap (access, the docs and boundary tests, the
-event table) it puts in the plan as the first work packages, so the orchestrator does
-them; access is owned by the human. The user's approval of the mapping is the review:
+approves its mapping. Its survey also records which safeguards (12.6) the project already
+has. The rest of the bootstrap (access, the backup, the dependency settings and secret
+scan, the docs and boundary tests, the event table) it puts in the plan as the first work
+packages, so the orchestrator does them; access and the backup are owned by the human. The user's approval of the mapping is the review:
 `adopt` then lands its one commit on the main branch itself (a fast-forward without a
 remote, a PR merged through CI and the merge guard with one), and the same approval
 accepts the process ADR unless the user says to leave it `Proposed`. Nobody merges the
@@ -769,6 +842,20 @@ Each rule above exists because something went wrong without it:
   package's outcome and ask questions before it lands. This led to the approval summary
   and the human's "approved" as the trigger for every merge: the human reads a summary,
   not a diff, so the bottleneck does not return.
+
+- **The secrets manager's own CLI was a way round the secrets rule.** The gate denied
+  `printenv`, and let `infisical run -- printenv`, `infisical export` and
+  `infisical secrets delete` through: the tool the model recommends for injection could
+  print or delete every secret. Found by passing command strings to the imported gates
+  (15 Nov 2026). This led to gate rules for the secrets manager's commands, to reading
+  the command an injector runs, and to the agent's own read-only identity.
+- **Published incidents, not ours, shaped the safeguards (12.6).** An agent elsewhere
+  deleted a production volume with an account-wide token it found in an unrelated file,
+  and the platform's backups went with the volume; its written rules forbade it. In the
+  same year several waves of poisoned packages collected every credential on the
+  machines that installed them, within hours of release. This led to the backup the
+  platform cannot delete, the release-age and install-script settings, and expiring,
+  project-scoped tokens as a rule, not advice.
 
 When something new goes wrong, follow the same pattern. Record the incident in the
 package log, change the rule in PROCESS.md, the skill and the agent files in one PR, and

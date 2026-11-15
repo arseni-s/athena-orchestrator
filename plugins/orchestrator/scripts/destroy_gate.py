@@ -5,7 +5,8 @@ network.
 
     deny   Railway deletes (project, service, volume, environment, variable, domain, ...),
            restores and transfers, by CLI, GraphQL or HTTP DELETE; GitHub repository,
-           release, secret and variable deletes; destructive SQL against a remote database
+           release, secret and variable deletes; Infisical secret and folder deletes (a
+           sync carries the delete to the platforms); destructive SQL against a remote database
            (DROP, TRUNCATE, DELETE or UPDATE without WHERE, ALTER TABLE ... DROP, dropdb,
            pg_restore --clean); a force push or delete of a main branch; a force push that
            does not name its branch; a destructive MCP tool on a platform or database
@@ -167,7 +168,7 @@ SQL_BULK = [
     (re.compile(r"\bupdate\s+[^;]*?\bset\b"), "UPDATE without WHERE"),
 ]
 
-MCP_SERVERS = ("railway", "github", "postgres", "neon", "supabase")
+MCP_SERVERS = ("railway", "github", "postgres", "neon", "supabase", "infisical")
 MCP_DESTROY = ("delete", "remove", "destroy", "drop", "truncate", "purge", "restore", "transfer")
 
 GIT_PUSH = re.compile(word("push"))
@@ -303,6 +304,9 @@ def shell_denies(command: str, cwd: Optional[str], depth: int = 0) -> Optional[t
         if found:
             return "gh-destroy", found
 
+    if any(infisical_delete(seg) for seg in segs):
+        return "infisical-delete", "deletes a secret or folder in Infisical"
+
     # A script it runs is read and checked too, so writing one first does not get round
     # these rules. Nested scripts are followed to MAX_SCRIPT_DEPTH.
     if cwd is not None and depth < MAX_SCRIPT_DEPTH:
@@ -377,6 +381,19 @@ def gh_destroy(seg: str, norm: str) -> Optional[str]:
     if api and GH_GRAPHQL.search(rest) and "mutation" in norm and re.search(r"\w*delete\w*", norm):
         return "runs a GitHub GraphQL delete mutation"
     return None
+
+
+def infisical_delete(seg: str) -> bool:
+    """`infisical secrets delete X`, `infisical secrets-manager folders delete x`. Only the
+    CLI's own words count: what `infisical run` runs (`... -- psql -c 'delete from t where
+    ...'`) is another program's business."""
+    for m in INFISICAL.finditer(seg):  # every mention: `infisical run -- infisical secrets delete X`
+        own = seg[m.end():].split()
+        own = own[:own.index("--")] if "--" in own else own
+        pos = [t for t in own if not t.startswith("-") and t != "secrets-manager"]
+        if pos[:1] != ["run"] and "delete" in pos:
+            return True
+    return False
 
 
 def shell_asks(command: str) -> Optional[tuple[str, str]]:

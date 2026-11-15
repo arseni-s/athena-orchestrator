@@ -30,8 +30,9 @@ point the profile at it instead of creating a second one.
    in the repo root (`python3` where `python` is not Python 3.11+; neither: stop, the
    gates need Python 3.11+).
    - **Exit 0**: the project is adopted already. Run steps 2 and 3 only for what is
-     missing (lens files, templates whose targets do not exist, the `/athena` shortcut),
-     and never touch the profile.
+     missing (lens files, templates whose targets do not exist, a plan section such as
+     "Safeguards" that an earlier version did not have, the `/athena` shortcut), and
+     never touch the profile.
    - **Exit 1**: a profile exists but is invalid. Report its problems and stop: the user
      fixes the profile, because only the user changes it.
    - **Exit 2**: carry on.
@@ -62,6 +63,10 @@ that writes. Never read `.env` files.
 | Database and migrations | `migrations/`, `db/`, `alembic/`, `prisma/` | `paths.full_panel`, `paths.ops`, the event-table package |
 | User interface | `templates/`, `static/`, `src/components/`, `app/`, `pages/`, `frontend/` | `paths.ux`, and whether `ux.md` is needed |
 | Auth, config, secrets handling | `auth/`, `config.*`, `.env.example`, lockfiles | `paths.security` |
+| Secrets on disk | by name only, never read: tracked `.env` files (`git ls-files`), untracked ones (`.env`, `.env.local`); `.infisical.json` | the "identity" safeguard row; a tracked `.env` file that is not an example file is the first thing in the report |
+| Dependency install settings | the lockfile (which package manager), `.npmrc`, `pnpm-workspace.yaml`, `bunfig.toml`, `pyproject.toml` / `uv.toml`, and how CI installs | the "dependencies" safeguard row |
+| Secret scanning | CI steps, `.gitleaks.toml`, `.infisical-scan.toml`, pre-commit config | the "secrets are caught" row; `{{secret_scan}}` |
+| Backups | scheduled workflows, backup or dump scripts, the hosting config, the runbook | the "backup" safeguard row |
 | Claude settings | `.claude/settings.json`, `.claude/agents/`, `.claude/skills/` | the settings merge; names that could confuse |
 | The `/athena` shortcut | `~/.claude/skills/athena/SKILL.md` | step 6 |
 
@@ -80,7 +85,9 @@ mapping.
    - what a merge deploys to, and what counts as **production**;
    - the **hard rules**: what must never happen;
    - which code is **critical** (where a bug is visible or loses data:
-     `paths.full_panel`), and whether anything needs a **freeze check**.
+     `paths.full_panel`), and whether anything needs a **freeze check**;
+   - the **safeguards** the survey could not see: whether the database has a backup
+     outside the hosting platform, and whether a restore was ever tested.
 2. **Present the mapping**: one table, one row per template in the templates README, with
    its target and one action:
    - `create`: the target does not exist; it is written from the template;
@@ -91,7 +98,10 @@ mapping.
    - `keep`: the file exists and works as it is;
    - `skip`: not needed here (say why: no user interface, no database).
 
-   Below it: the profile you will write, in full, and the seed packages (step 4.6).
+   Below it: the profile you will write, in full, the seed packages (step 4.6), and the
+   plan's "Safeguards" table as the survey found it: each of the four rows `done` with
+   what proves it, `not needed` with the reason, or `todo` with what is missing. Mark a
+   row `done` only on evidence you read, never on a guess.
 3. **Wait for one approval** of the mapping. Apply the changes the user asks for. Do not
    write anything before this approval. **This approval is the user's review of the
    adoption**: everything that sets the rules (the profile, the settings, the ADR) is in
@@ -125,7 +135,13 @@ branch. Writes go through the file tools, never a shell heredoc.
    `AGENTS.md` byte-identical, when the project keeps both), the plan, `PROCESS.md`, the
    ADR index, the spec template, the log index, the PR template, and `ci.yml` when the
    project has no CI. CI gets one step per gate command, after the setup steps the
-   toolchain needs. The ADR (`adr-orchestrated-development.md`) takes the next free
+   toolchain needs; those install from the lockfile only. Before them comes the
+   secret-scan step (`{{secret_scan}}`): `infisical scan` or `gitleaks` over the pull
+   request's commits, with the scanner installed at a version you looked up and pinned,
+   never `latest` and never a script piped into a shell. If you cannot pin one, write a
+   `TODO(adopt)` line there, and the scan becomes part of the safeguards package. A
+   project that has CI already keeps its workflow: the scan step goes in the safeguards
+   package. The ADR (`adr-orchestrated-development.md`) takes the next free
    number. Its status is `Accepted, <date> (by the user, approving the adoption)`, or
    stays `Proposed` when the user said so: only the user accepts it, and the approval
    is that acceptance.
@@ -133,9 +149,35 @@ branch. Writes go through the file tools, never a shell heredoc.
    (the orchestration model, section 13), one row and one short spec each, from the spec
    template, with IDs that fit the plan's scheme:
    - **access** (owner `human`): the access inventory, the secrets manager with
-     variables synced to every platform, project-scoped tokens, the database write role
-     that owns nothing and the read-only role. Its Verify steps prove each grant works
-     and is scoped;
+     variables synced to every platform, project-scoped tokens with expiry dates and no
+     account-wide token, the database write role that owns nothing and the read-only
+     role. In the secrets manager the agent gets **its own machine identity**: read-only
+     (Infisical: the Viewer role), with no production values (where the plan cannot
+     limit an identity to an environment, production secrets go in a second
+     secrets-manager project the identity is not a member of), and an access-token
+     lifetime of hours. Its client secret stays in the user's password manager; a
+     launcher outside the repo swaps it for an access token before the agent starts.
+     The user keeps no admin session of the secrets manager's CLI on this machine. Real
+     values leave every `.env` file. Its Verify steps prove each grant works and is
+     scoped: the identity reads a development secret, and a write and a production read
+     with it are refused;
+   - **backup** (owner `human`, only when the project has a database and the backup
+     safeguard is not `done`): a scheduled dump of each database to storage at another
+     provider, written with a credential that can add files and cannot delete them, and
+     kept out of the agent's reach. Its Verify steps: a dump from the last day exists; a
+     delete with the backup credential is refused; one restore into a scratch database
+     succeeds, with a row count that matches. The user may have the orchestrator write
+     the job; the storage account and its credential are the user's;
+   - **safeguards** (owner `orchestrator`, for the rows that are not `done`): the
+     package manager's minimum release age set to 7 days and dependency install scripts
+     off (npm: `min-release-age` and `ignore-scripts` in `.npmrc`; pnpm:
+     `minimumReleaseAge`, in minutes, in `pnpm-workspace.yaml`; check the names against
+     the documentation of the installed version; another package manager: the settings
+     its documentation names, and if it has none, the spec says so and the row stays
+     open as a question for the user), CI installing from the lockfile only,
+     and the secret-scan step in CI when adopt did not write it. Its Verify steps print
+     the active settings and show a CI run in which the scan ran. A package that needs
+     its install script is allowed by name, and listed in the spec for the user;
    - **docs and boundary tests** (owner `orchestrator`): the doc indexes list every doc,
      links resolve, `CLAUDE.md` and `AGENTS.md` match, every ADR is indexed, and the
      project's architectural boundaries are tests;
@@ -185,15 +227,27 @@ One screen:
   appended, kept, skipped;
 - the verify output from step 5, trimmed;
 - every `TODO(adopt)` line, with its file and question;
+- the **safeguards** table: each row and its status. A tracked `.env` file that is not
+  an example file is named first. You have not read it: the user checks whether it holds
+  real values, and if it does, rotates them and moves them to the secrets manager;
 - **what the user does next**, in order:
   1. only if they left the orchestration ADR `Proposed`: accept it when ready (any
      Claude session can mark it Accepted on their word), since the orchestrator will not
      run before;
   2. do the **access** package (owner `human`), and fill in the plan's access inventory;
-  3. make CI's check name match `merge.required_check`, and require it in the branch
-     protection of the main branch;
-  4. start a new Claude Code session in the repo, so the plugin's hooks load, and run
-     `/athena`.
+  3. do the **backup** package (owner `human`) when there is one, before the first
+     package that writes to a real database;
+  4. make CI's check name match `merge.required_check`, and require it in the branch
+     protection of the main branch; switch on the git host's secret scanning and push
+     protection for the repository;
+  5. start a new Claude Code session in the repo, so the plugin's hooks load, and run
+     `/athena`;
+- **what no plugin can do for them** (the orchestration model, section 12.6), in four
+  lines: a passkey or hardware key on email, the git host, the hosting platform, the
+  secrets manager and the domain registrar; a password manager instead of
+  browser-saved passwords; a standard, non-administrator user for daily work; a
+  repository from an unknown source opened in a cloud development environment, never
+  trusted straight away.
 
 The orchestration model ends with a close-out: when active development ends,
 `/athena-orchestrator:close-out` revokes write access and moves the project to read-only.

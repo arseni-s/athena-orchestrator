@@ -2018,5 +2018,150 @@
   "expect": "deny",
   "rule": "write-script",
   "note": "a Makefile recipe"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical secrets delete DATABASE_URL"
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "a sync carries the delete to the platforms"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical secrets delete API_KEY --env=prod --type=shared --yes"
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "with flags"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "infisical.exe secrets-manager secrets delete API_KEY"
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "the secrets-manager prefix, .exe"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical secrets folders delete --name legacy"
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "a folder delete removes its secrets"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical secrets-manager folders delete --name legacy --path /"
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "folders at the top level"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical --env prod secrets delete API_KEY"
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "a flag before the subcommand"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical run -- infisical secrets delete API_KEY"
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "bypass: run through the injector"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "pnpm test && infisical secrets delete API_KEY"
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "a later segment"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "scripts/cleanup.sh",
+   "content": "#!/bin/sh\ninfisical secrets delete OLD_KEY --yes\n"
+  },
+  "expect": "deny",
+  "rule": "write-script",
+  "note": "a script that deletes a secret"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical run -- psql -c 'delete from app.session where id = 7'"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "what `infisical run` runs is not an Infisical delete; the SQL has a WHERE"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical run --env=dev -- pnpm run delete-cache"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "a project script named like a delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical run pnpm test"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "run without `--`"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "infisical scan --no-git"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "the secret scan"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git commit -m \"docs: never run infisical secrets delete\""
+  },
+  "expect": "deny",
+  "rule": "infisical-delete",
+  "note": "over-match accepted: a quoted mention; use git commit -F <file>"
+ },
+ {
+  "tool": "mcp__infisical__delete-secret",
+  "input": {
+   "secretName": "API_KEY"
+  },
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "Infisical MCP delete"
+ },
+ {
+  "tool": "mcp__infisical__list-secrets",
+  "input": {
+   "environmentSlug": "dev"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "an Infisical MCP read is not this gate's business"
  }
 ]
