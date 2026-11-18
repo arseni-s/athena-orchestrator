@@ -149,7 +149,22 @@ profile and its own documents.
   live together. Work that spans two repositories is two projects, each with its own
   plan.
 - Run **one orchestrator per project**, started in the repo so its hooks apply. Never run
-  two in the same repo.
+  two in the same repo: they would claim the same package, deploy to test over each
+  other's checks, and conflict on the plan file in every rebase. The orchestrator takes
+  the repo's **lock** at session start (`scripts/athena_lock.py claim`) and gives it back
+  at session end. The lock is one file in the git common directory, so every worktree
+  shares it. It names the holder's Claude process: a second orchestrator stops, and a
+  crashed holder's lock frees itself once its process has ended. A holder it cannot check
+  counts as live, and only the human frees that one (`release --force`).
+- Parallel orchestrators were weighed (18 Nov 2026) and left out. The human's approval
+  sets the pace, not the implementer, and one orchestrator already moves on to
+  independent packages while summaries wait. Revisit when packages pile up while the
+  human waits for work. Even then, two implementers in one orchestrator come before two
+  orchestrators, because one session sees what both touch.
+- **Nothing is handed to the human mid-task.** Agents never ask the human to press a
+  button, dismiss a prompt, restart an app or copy output across. They script it. A
+  desktop app is a viewer that a script reopens, and the work lives in files. The human is
+  asked only for an approval or a decision (section 8).
 - Each package is claimed in its own **git worktree** next to the repo
   (`<repo>-wp-<id>`) and its own branch (`wp/<id>-<slug>`). No two sessions ever share a
   branch.
@@ -162,7 +177,8 @@ profile and its own documents.
 **Session start**
 1. Read the hard rules, the plan, the process ADRs and PROCESS.md. Leave the large docs to
    the subagents.
-2. Check the profile and its **access phase**. In the observe phase the orchestrator
+2. Check the profile, take the repo's lock (section 3.3; another orchestrator holding it
+   means stop), and check the **access phase**. In the observe phase the orchestrator
    reports and stops: new work re-opens development first (section 12). It also stops
    when the adoption is not merged to the main branch, or the ADR that grants it its
    authority is still `Proposed`.
@@ -856,6 +872,15 @@ Each rule above exists because something went wrong without it:
   machines that installed them, within hours of release. This led to the backup the
   platform cannot delete, the release-age and install-script settings, and expiring,
   project-scoped tokens as a rule, not advice.
+
+- **Sessions sharing one folder spoiled each other's work** in another project, which had
+  no git (18 Nov 2026). A tool that loaded a whole folder and wrote all of it back dropped
+  another session's edit. A session restarting a shared desktop app killed the other's
+  work. One session's end-of-turn checks sent it to "fix" the other's half-finished
+  change. Worktrees already prevent most of this here, and the docs gate checks only the
+  session's own folder. It led to the orchestrator lock (3.3), the no-hand-offs rule, and
+  the lost-update rule for the implementer and the reliability lens: a whole-folder
+  write-back must not overwrite a change made after the load.
 
 When something new goes wrong, follow the same pattern. Record the incident in the
 package log, change the rule in PROCESS.md, the skill and the agent files in one PR, and

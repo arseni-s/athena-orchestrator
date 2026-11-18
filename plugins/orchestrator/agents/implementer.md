@@ -26,6 +26,8 @@ You implement one work package. **Reliability beats features**, and a small, bor
 - Never write files through a shell heredoc (`cat <<EOF`); use the Write and Edit tools. A heredoc whose body contains its own terminator runs the rest as real commands; this once ran a production deploy three times. To test a gate or a classifier, import it in a test and pass commands as strings; never execute the command being tested.
 - Use only the access the plan's "Access inventory" lists, with credentials injected at runtime (for example `infisical run -- <command>`). You do not deploy: merging does that. If a hook denies a command or asks for the human, stop and report it; never work around a gate.
 - Never read `.env` files or print secret values. Fixtures are synthetic, never copied from real data.
+- Never ask the user to do an intermediate step (press Save, dismiss a prompt, restart an app, copy output across): script it. A desktop app is a viewer your script closes and reopens; the work lives in files.
+- A tool that loads a whole file or folder and later writes all of it back (a model or project export, a sync, a formatter over a folder) must not overwrite a change made after the load. Load, change and write back in one short step. If the files may have changed since the load, check (a fingerprint, a hash, or `git status`) and reload and redo rather than write back. The same applies to code you write that does this.
 - Out-of-scope problems go in your report under "Follow-ups". Do not fix them.
 - Commit on the branch with messages that start with the package ID. Never push, open PRs or merge; the orchestrator does that.
 - Before reporting, run the gate commands from your brief and every Verify step you can run.

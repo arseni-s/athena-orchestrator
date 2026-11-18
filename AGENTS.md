@@ -55,6 +55,12 @@ wherever it differs:
   were weighed, with Infisical Agent Vault (BROKER.md), and left for a project that
   needs them. The two access phases stay, because the agent holds real tokens while it
   develops.
+- **One orchestrator per repo, enforced (18 Nov 2026)**, MODEL.md section 3.3. A lease for
+  parallel sessions was ported from a project without git, then weighed and left out: the
+  user's approval sets the pace, and parallel branches would conflict on the plan file.
+  Instead `scripts/athena_lock.py` gives the orchestrator a lock in the git common
+  directory; a second one stops. Two rules came with it: no hand-offs to the user
+  mid-task, and no whole-folder write-back over a change made after the load.
 
 **Trial (step 10)**, recorded in [docs/TRIAL.md](docs/TRIAL.md). Run 1 drove the
 installed hooks with sample events and found `installed_plugins.json` at the stub's
@@ -109,7 +115,7 @@ plugins/orchestrator/
   skills/adopt/SKILL.md                set up a new or existing project
   skills/close-out/SKILL.md            end of active development: revoke, rotate, verify
   agents/*.md                          implementer, review-*, finding-verifier
-  hooks/hooks.json, scripts/*.py       destroy gate, ops gate + merge guard, docs gate
+  hooks/hooks.json, scripts/*.py       destroy gate, ops gate + merge guard, docs gate, orchestrator lock
   templates/                           CLAUDE.md, plan, PROCESS.md, spec, ADR, log, PR, CI, log-table SQL
   shim/athena/SKILL.md                 user-level shortcut, copied to ~/.claude/skills/athena/
 docs/MODEL.md                          the design

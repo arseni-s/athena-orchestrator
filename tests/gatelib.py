@@ -22,6 +22,7 @@ sys.path.insert(0, str(SCRIPTS))
 # The plugin folder is what a marketplace copies when it installs the plugin: keep bytecode out.
 sys.dont_write_bytecode = True
 
+import athena_lock  # noqa: E402
 import athena_profile  # noqa: E402
 import destroy_gate  # noqa: E402
 import docs_gate  # noqa: E402

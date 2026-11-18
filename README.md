@@ -57,6 +57,9 @@ you; then, in a new session:
 /athena all      keep going until the plan is done or something needs you
 ```
 
+One orchestrator runs per repo. A second `/athena` in the same repo, or in one of its
+worktrees, stops and says which session holds it.
+
 ## Your plan
 
 Plan however you like, then put it in this shape (a planning chat with Claude can convert

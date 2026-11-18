@@ -10,7 +10,9 @@ orchestrator makes: [decisions/log/](decisions/log/README.md). The engine is the
 ## How to run it
 
 Start Claude Code in this repo and type `/athena` (the next package), `/athena <ID>`, or
-`/athena all`. Run one orchestrator per repo, never two.
+`/athena all`. One orchestrator runs per repo: a second `/athena` in the same repo, or in
+one of its worktrees, finds the first one's lock and stops. If a session crashed, its lock
+frees itself once its Claude process has ended.
 
 ## The loop, per work package
 

@@ -54,19 +54,25 @@ going until nothing can start, a stop condition hits, or the user interrupts.
    or continue any package. Report the plan's state and stop. New work re-opens
    development, which only the user does, by changing the phase and re-granting access
    from the inventory.
-3. **Adopted and accepted.** Packages branch from the main branch, and the authority to
+3. **One orchestrator per repo.** Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/athena_lock.py" claim`
+   in the main checkout. Exit 0: this session holds the repo's lock (it is shared by every
+   worktree). **Exit 1**: another orchestrator is running in this repo; stop, and pass on
+   what it prints: two would claim the same package and deploy over each other. **Exit 2**:
+   it cannot check; stop, and pass on why. Never run `release --force` yourself: freeing
+   another session's lock is the user's call.
+4. **Adopted and accepted.** Packages branch from the main branch, and the authority to
    merge and deploy comes from the ADR that adopts this process. So stop, and tell the user
    what to do, when:
    - the profile is not on the main branch (`git show <main>:.claude/orchestration/project.toml`,
      or `origin/<main>` when there is a remote): the adoption is not merged yet;
    - a file in `plan.read_at_start` is an ADR whose status is still `Proposed`: the user
      has not accepted the process yet.
-4. **Paths.**
+5. **Paths.**
    - the main checkout: the repo this session started in;
    - a package worktree: next to it, `<repo folder>-wp-<id>`, on branch `wp/<id>-<slug>`;
    - plan, specs, ADRs and log: the `[plan]` paths (defaults: `docs/IMPLEMENTATION_PLAN.md`,
      `docs/work`, `docs/decisions`, `docs/decisions/log`).
-5. **Path patterns** in the profile match repo-relative paths: a trailing `/` means
+6. **Path patterns** in the profile match repo-relative paths: a trailing `/` means
    everything under that folder, `*` matches within one path segment, `**` matches any
    number of segments.
 
@@ -198,8 +204,17 @@ going until nothing can start, a stop condition hits, or the user interrupts.
   the end of the session. When you are blocked on the user, send one push notification if
   a push tool is available, with the project name and the kind of event, never content.
 
+### No hand-offs mid-task
+Never ask the user to do an intermediate step for you: press a button, dismiss a prompt,
+restart or reopen an app, copy output from one place to another. Do it by script, or have
+the implementer write the script. A desktop or GUI app is a disposable viewer that a
+script closes and reopens; the work lives in files. Stop for the user only with a result
+to approve or a decision from section 6.
+
 ### End of session
-Print the report in section 10.
+Print the report in section 10, then `python "${CLAUDE_PLUGIN_ROOT}/scripts/athena_lock.py" release`
+in the main checkout. A session that ends without it frees the lock anyway once its Claude
+process has ended.
 
 ## 4. Statuses
 
