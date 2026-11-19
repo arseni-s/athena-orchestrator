@@ -39,8 +39,17 @@ wherever it differs:
   the secrets manager. This replaced the `development`/`observe` phases, the `close-out`
   skill and `deploy.freeze_check`: a project rarely ends cleanly, and the user now
   decides when production deploys. The engine knows no dates, deadlines or checkpoints.
-- **Platform rules cover Railway, git, gh, `docker push` and the Infisical CLI** only. Add
-  another platform's rules when a project uses it.
+- **Platform rules cover Railway, git, gh, `docker push`, and the 1Password and Infisical
+  CLIs** only. Add another platform's rules when a project uses it.
+- **1Password is the default secrets manager (19 Nov 2026)**, MODEL.md section 12.3. Every
+  value lives there once, in a `-dev` and a `-prod` vault per project, one item per
+  platform environment. `templates/push_secrets.py` copies an item to its Railway
+  environment (values on stdin; production with `--skip-deploys`, run by the user only).
+  The agent's service account reads the `-dev` vaults only. Infisical stays supported for
+  projects that use it; its free plan's per-account limits ruled it out as the default.
+  Injection hides a value from the transcript, not from the agent, so development holds
+  only values that are cheap to lose, and a credential with no test account stays in
+  production.
 - **The broker** ([docs/BROKER.md](docs/BROKER.md)) is a design note. Build it when a
   project needs it.
 - The reliability and UX lenses are general; a project's specifics go in its lens files.

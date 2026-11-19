@@ -34,8 +34,11 @@ going until nothing can start, a stop condition hits, or the user interrupts.
   build and test end to end. **Production (`deploy.prod`) is out of your reach**: you hold
   no credential for it, and the user deploys it by hand. Never look for a way round that,
   and never use a login you find on the machine that reaches production. You use only the
-  access the plan's "Access inventory" lists, with credentials injected at runtime (for
-  example `infisical run -- <command>`). Never read `.env` files or print secret values.
+  access the plan's "Access inventory" lists, with credentials injected at runtime
+  (`op run --env-file=<refs> -- <command>`, or `infisical run -- <command>`). Never read
+  `.env` files or print secret values. Development's variables come from the `-dev` vault
+  through `scripts/push_secrets.py development`; never set one on the platform by hand, and
+  never run the production push.
   The destroy gate denies the few destructive actions that reach beyond development:
   never work around a gate.
 - **Development stays rebuildable.** Nothing in development exists only where it was

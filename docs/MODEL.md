@@ -525,7 +525,7 @@ the human leaves bypass mode to approve the call, or does it by hand.
 | **Docs gate** | PreToolUse + Stop hook | A commit or a session end with behaviour changes but no doc changes is blocked (explicit, reviewable opt-out marker only). |
 | **Docs tests** | test suite | Indexes list every doc, links resolve, mirrored files are byte-identical, every ADR is indexed. |
 | **Destroy gate** | PreToolUse hook on shell, edit and MCP tools | The destructive actions whose reach spans environments are denied (the list is in section 12.2, layer 5): the platform project or an environment, the repository, the main branch, the secrets manager. Destruction inside development is allowed. Edits to the profile or the agent settings ask first, so a session cannot switch a gate off by itself. Needs no configuration. |
-| **Ops gate** | PreToolUse hook on shell tools | Deploys and platform commands run (the agent's credentials reach development only). A merge without green checks, or a direct push to the main branch → deny (the merge guard). Commands that print secrets → deny, including the secrets manager's own listing and export commands and whatever an injector runs (`infisical run -- printenv`); commands it cannot read well enough to rule out a hidden merge or push → ask. |
+| **Ops gate** | PreToolUse hook on shell tools | Deploys and platform commands run (the agent's credentials reach development only). A merge without green checks, or a direct push to the main branch → deny (the merge guard). Commands that print secrets → deny, including the secrets manager's own listing and export commands and whatever an injector runs (`op run -- printenv`, `infisical run -- printenv`); commands it cannot read well enough to rule out a hidden merge or push → ask. |
 | **Merge guard** | the same hook | `merge` is denied unless every check on the PR head passed; auto-merge is denied; direct pushes to main are denied. It also covers **aliases, extensions and API endpoints** that reach the same action, and non-built-in subcommands go to the human. |
 | **CI** | the CI provider | Lint, build, tests, docs tests and boundary tests on every PR; actions pinned to SHAs. |
 | **Boundary tests** | test suite | Architectural boundaries (e.g. "module X never imports Y", "no client-specific names in the generic core") are tests, not just advice. |
@@ -603,8 +603,9 @@ reaches; the rest are on the agent's machine.
      visibility; deleting releases, or the git host's secrets or variables (they can
      hold CI's production credential); a force push or delete of the main branch, or a
      force push that does not name its branch;
-   - deleting a secret or a folder in the **secrets manager**: a sync carries the delete
-     to every environment, production included;
+   - deleting in the **secrets manager**: a 1Password item, document, vault, user or group
+     (a vault can hold production values), or an Infisical secret or folder (a sync
+     carries the delete to every environment, production included);
    - writing a file that holds one of these as a platform API call, or a script (shell,
      PowerShell, batch, CI YAML, Makefile, package.json, any `#!` file) that holds any of
      them;
@@ -645,20 +646,40 @@ directly never passes through them, which is why the server-side layers come fir
    token must never reach another project or production. Use project- and
    environment-scoped tokens. A tool that only works with an account-wide token is not
    used: pick another route. Give every token an expiry date where the platform offers
-   one. Keep one secrets-manager project and one machine identity per project.
+   one.
+
+   **The secrets manager is 1Password by default (19 Nov 2026).** Every value lives there,
+   once; the platform holds a copy. Each project has two vaults, `<project>-dev` and
+   `<project>-prod`, and in each vault one item per platform environment
+   (`railway-development`, `railway-production`) with one field per variable: the label is
+   the variable's name. A script in the repo (the `push_secrets.py` template) copies an
+   item to its environment, passing values on standard input, never on a command line:
+   the dev rebuild runs it for development, and the human runs it for production from
+   their own terminal, where it changes production's variables without redeploying.
+   Infisical, whose syncs do that copy by themselves, is the alternative for a project
+   that already uses it or wants the syncs; the gates know both. Its free plan's limits
+   (syncs, identities and environments per account) are what ruled it out as the default.
 
    **The agent has its own identity in the secrets manager, never the human's login.** A
    secrets manager puts every secret behind one login, so that login is the most valuable
-   credential there is. The agent's machine identity is therefore:
-   - **read-only** (in Infisical, the built-in Viewer role): the human adds and changes
-     secrets, so no value passes through the session;
-   - **limited to development values.** Production deploys get theirs through the sync.
-     Where the plan cannot limit an identity to an environment, the production secrets
-     live in a second secrets-manager project that the agent's identity is not a member
-     of;
-   - **short-lived in the session.** Its long-lived client secret stays in the human's
-     password manager. The human starts the agent from a launcher that swaps it for an
-     access token of a few hours, and only that token reaches the session;
+   credential there is. The agent's identity (a 1Password service account, an Infisical
+   machine identity) is therefore:
+   - **read-only** (1Password: read access to the vault; Infisical: the built-in Viewer
+     role): the human adds and changes secrets, so no value passes through the session;
+   - **limited to development values.** It is given the `-dev` vaults only, never a
+     `-prod` one; a 1Password service account cannot be given the human's own vaults at
+     all. One service account may serve every project's development vault: a leak then
+     exposes development values only, which are cheap to lose by design (rule 3). In
+     Infisical, where the plan cannot limit an identity to an environment, production
+     lives in a second project the identity is not a member of;
+   - **kept out of the session's reach.** Its token stays in the human's password manager.
+     The human starts the agent from a launcher that puts it in the session's environment
+     (`OP_SERVICE_ACCOUNT_TOKEN`, or an Infisical access token of a few hours), so it never
+     appears in a file or the transcript;
+   - **within its limits.** 1Password service accounts have hourly and daily request
+     limits per plan, the daily one shared by every service account in the account. Tests
+     need no secrets, and the app reads its variables from the platform, so 1Password is
+     read only when the push script runs;
    - **an inventory row**, like any other credential.
 
    **Nothing on the agent's machine reaches production.** The agent runs as the human's
@@ -672,17 +693,24 @@ directly never passes through them, which is why the server-side layers come fir
      deployments permission. It cannot change branch protection, read CI's production
      credential, or approve a production deployment.
 3. **Secrets never enter the transcript.** Inject them into the process at runtime
-   through the secrets manager's CLI (for example `infisical run -- <command>`). Never
+   through the secrets manager's CLI (`op run --env-file=<refs> -- <command>`, where the
+   file holds `op://` references and no values; or `infisical run -- <command>`). Never
    paste values, never keep real values in `.env` files, and never let the agent read
    one. Anything that appears in the context is stored in session transcripts on disk and
    may be passed to subagents. Development secrets count too: they include paid API keys
    and test accounts. The ops gate denies commands that print secrets: `env`, `printenv`,
    `cat .env`, platform "list variables" commands, the secrets manager's own listing,
-   export and token commands, a one-line dump of the whole environment, and any of these
-   run through an injector (`infisical run -- printenv`, `railway run env`). Limitation:
-   this stops accidental exposure, not a determined process. A program that was handed a
-   secret can still print it, and no gate reads what a program does. Rotating the
-   development secret is the backstop; a production secret was never within reach.
+   export and token commands (`op read`, `op inject`, `op item get`, `op signin`,
+   `infisical export`), a one-line dump of the whole environment, and any of these run
+   through an injector (`op run -- printenv`, `infisical run -- printenv`, `railway run
+   env`). Limitation: this stops accidental exposure, not a determined process. A program
+   that was handed a secret can still print it, and no gate reads what a program does. So
+   **plan as if the agent can read every value its identity reaches**: development holds
+   only values that are cheap to lose (a test bot, API keys with low spending limits, test
+   accounts, invented data). A credential that acts in the real world and has no test
+   account (a portal login, a signing key) stays in production only, and development
+   works against a fake of that service. Rotating the development secret is the
+   backstop; a production secret was never within reach.
 4. **Database roles.**
    - **Development:** the agent's role owns the development database, or the agent runs
      the migrate command against it. It can create, drop, reset and reseed.
@@ -705,10 +733,11 @@ directly never passes through them, which is why the server-side layers come fir
    project does it. The cost is that the platform's deploy history is the only record of
    what was released, so each session report lists what is ready for production, and the
    human checks the deployed commit against it. The agent never deploys there itself.
-6. **Automate rotation.** Platform environment variables are **synced from the secrets
-   manager**, never edited by hand, so a rotation reaches every environment by itself.
-   Use the secrets manager's built-in rotation where it supports the credential type
-   (database users usually are). Rotate at once whenever a secret value shows up in a
+6. **Rotate in one place.** Platform environment variables are **copied from the secrets
+   manager** (the push script, or an Infisical sync), never edited on the platform, so a
+   rotation is one change and one push. The push script lists any variable that exists on
+   the platform only, so nothing is kept there alone. Use the secrets manager's built-in
+   rotation where it supports the credential type. Rotate at once whenever a secret value shows up in a
    transcript, log, commit or PR.
 7. **The wall is proved before the orchestrator runs**, and again whenever access
    changes. The access package's Verify steps:
@@ -805,7 +834,9 @@ with one row for each, and what proves it.
    was made.** Anything someone puts there by hand (a stakeholder's demo accounts, the
    fixtures the end-to-end tests expect, a setting changed in a dashboard) is turned into
    seed or setup code in the next package, so the rebuild brings it back. The seed data is
-   invented, never a copy of production, and holds no real secret. Proved by running the
+   invented, never a copy of production, and holds no real secret. Development's
+   variables come back the same way: the rebuild runs the push script, which copies them
+   from the `-dev` vault. Proved by running the
    command once against an empty environment and recording the output, and again
    whenever a migration, the seed or the setup changes; CI can do it on every PR. This is
    what makes the agent's full control of development safe: a destroyed development
@@ -864,8 +895,9 @@ orchestrator exists):
 1. `CLAUDE.md` with hard rules; `IMPLEMENTATION_PLAN.md` with a status table, open
    questions and the follow-up register; an ADR index; a spec template with a Verify
    section.
-2. Access: the access inventory, the secrets manager with environment variables synced
-   to every platform, the agent's own read-only identity in it, tokens scoped to the
+2. Access: the access inventory, the secrets manager (1Password by default: a `-dev` and a
+   `-prod` vault, and the push script that copies each to its platform environment), the
+   agent's own read-only identity in it, tokens scoped to the
    project and to development, the production deploy route from the main branch with
    branch protection, the database roles (the agent owns development; in production at
    most a read-only role), and runtime injection for every command that needs a secret.
@@ -932,6 +964,13 @@ Each rule above exists because something went wrong without it:
   print or delete every secret. Found by passing command strings to the imported gates
   (15 Nov 2026). This led to gate rules for the secrets manager's commands, to reading
   the command an injector runs, and to the agent's own read-only identity.
+- **Injection hides a secret from the transcript, not from the agent** (19 Nov 2026). The
+  agent writes the code that `op run` or `infisical run` hands the values to, so it can
+  read any value its identity reaches. Weighing Infisical against 1Password for a solo
+  setup also showed the free plan's per-account limits (syncs, identities, environments)
+  would not cover ten projects, while the 1Password plan already paid for covers them.
+  This led to 1Password as the default, a push script in place of syncs, and the rule
+  that development holds only values that are cheap to lose.
 - **Published incidents, not ours, shaped the safeguards (12.6).** An agent elsewhere
   deleted a production volume with an account-wide token it found in an unrelated file,
   and the platform's backups went with the volume; its written rules forbade it. In the

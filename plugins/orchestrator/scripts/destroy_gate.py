@@ -11,7 +11,8 @@ This gate denies what can reach production or what every environment shares:
            workspace or team), by CLI, GraphQL or HTTP DELETE; GitHub repository delete,
            archive, rename, transfer or visibility change, and release, secret and variable
            deletes; Infisical secret and folder deletes (a sync carries the delete to every
-           environment); a force push or delete of a main branch; a force push that does not
+           environment); 1Password item, document, vault, user and group deletes (a vault
+           holds production values too); a force push or delete of a main branch; a force push that does not
            name its branch; the same actions through an MCP tool; a file write that holds a
            Railway project or environment delete mutation; a script written or run that
            holds any of these (`sh x`, `bash x`, `source x`, `./x`, `pwsh -File x`; written:
@@ -129,6 +130,8 @@ RAILWAY = program(r"railway")
 GIT = program(r"git")
 GH = program(r"gh")
 INFISICAL = program(r"infisical")
+OP = program(r"op")
+OP_SCOPES = {"item", "document", "vault", "user", "group"}
 
 # Railway: what the agent's development-scoped token reaches is allowed; a project,
 # environment, workspace or team holds production too, so deleting one is denied.
@@ -143,9 +146,9 @@ HTTP_DELETE = re.compile(
     r"|(?<![\w-])-me\w*(?:\s*:\s*|\s+))delete(?![\w-])")
 HTTP_DELETE_HOSTS = re.compile(r"backboard\.railway|api\.github\.com")
 
-# MCP: GitHub and Infisical are shared by every environment, so any destructive tool is
+# MCP: GitHub and the secrets managers are shared by every environment, so any destructive tool is
 # denied; on Railway only the tools that act on a project, environment, workspace or team.
-MCP_SHARED = ("github", "infisical")
+MCP_SHARED = ("github", "infisical", "1password", "onepassword")
 MCP_DESTROY = ("delete", "remove", "destroy", "drop", "truncate", "purge", "restore", "transfer")
 
 GIT_PUSH = re.compile(word("push"))
@@ -275,6 +278,9 @@ def shell_denies(command: str, cwd: Optional[str], depth: int = 0) -> Optional[t
     if any(infisical_delete(seg) for seg in segs):
         return "infisical-delete", "deletes a secret or folder in Infisical"
 
+    if any(op_delete(seg) for seg in segs):
+        return "op-delete", "deletes an item, document, vault, user or group in 1Password"
+
     # A script it runs is read and checked too, so writing one first does not get round
     # these rules. Nested scripts are followed to MAX_SCRIPT_DEPTH.
     if cwd is not None and depth < MAX_SCRIPT_DEPTH:
@@ -366,6 +372,20 @@ def infisical_delete(seg: str) -> bool:
         own = own[:own.index("--")] if "--" in own else own
         pos = [t for t in own if not t.startswith("-") and t != "secrets-manager"]
         if pos[:1] != ["run"] and "delete" in pos:
+            return True
+    return False
+
+
+def op_delete(seg: str) -> bool:
+    """`op item delete x`, `op vault delete app-prod`, `op.exe document delete key.pfx`. Only
+    op's own words count (what `op run` runs is another program's), and only a command
+    word followed by `delete`: `op` is also a common short word."""
+    for m in OP.finditer(seg):  # every mention: `op run -- op item delete x`
+        own = seg[m.end():].split()
+        own = own[:own.index("--")] if "--" in own else own
+        pos = [t for t in own if not t.startswith("-")]
+        # the command word comes first, or after a flag's value (`--account x item delete`)
+        if any(t in OP_SCOPES and "delete" in pos[i + 1:i + 3] for i, t in enumerate(pos[:3])):
             return True
     return False
 

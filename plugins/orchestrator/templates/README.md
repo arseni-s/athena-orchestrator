@@ -19,6 +19,7 @@ skill file).
 | `log-README.md` | `docs/decisions/log/README.md` (`plan.log`): the log index and template | 5 |
 | `adr-orchestrated-development.md` | `docs/decisions/<next number>-orchestrated-development.md`, status `Proposed` | 5 |
 | `log_event.sql` | the project's migrations folder, as its next migration | 6 |
+| `push_secrets.py` | `scripts/push_secrets.py`: copies an environment's variables from 1Password to Railway; the dev rebuild runs it for development | 2 |
 
 ## Placeholders
 
@@ -45,6 +46,9 @@ orchestrator or a human fills in later, for each package or decision.
 | `{{lens}}` | the lens a lens file is for (`Correctness`, `Reliability`, ...) |
 | `{{ci_setup}}` | CI steps that install the toolchain the gates need. Installs come from the lockfile only (`npm ci`, `pnpm install --frozen-lockfile`, `uv sync --locked`) |
 | `{{secret_scan}}` | the CI step that scans the pull request's commits for secrets (`infisical scan` or `gitleaks`), with the scanner installed at a pinned version, never `latest` |
+| `{{op_vault_dev}}`, `{{op_vault_prod}}` | the 1Password vaults holding development's and production's values (`<project>-dev`, `<project>-prod`); the agent's service account reads the first only |
+| `{{railway_env_dev}}`, `{{railway_env_prod}}` | the Railway environment names (`development`, `production`) |
+| `{{railway_service}}` | one Railway service that gets the variables; repeat the entry for each |
 | `{{hard_rule}}` | one hard rule of the project; repeat for each |
 | `{{docs_hint}}` | `docs.hint` |
 

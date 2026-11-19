@@ -22,14 +22,19 @@ reply "approved", and records every decision in
 Breaking one of these is a Blocker, whatever a spec says.
 
 - {{hard_rule}}
-- **Destructive operations are a hard no**, even with approval: deleting anything on a
-  hosting platform, destructive SQL on a non-local database, a force push or delete of
-  `{{main}}`. The user runs them in their own terminal. The destroy gate denies them.
-- **Secrets never enter the session.** Commands that need one get it injected at runtime
-  by the secrets manager. Never read `.env` files and never print a secret's value. No
-  real value is kept in a `.env` file, and only the user adds or changes a secret.
+- **Destruction beyond development is a hard no**, even with approval: deleting the
+  hosting platform's project or an environment, the repository, anything in the secrets
+  manager, a force push or delete of `{{main}}`. The user runs them in their own terminal.
+  The destroy gate denies them. Inside development, resets, drops and deletes are allowed:
+  development rebuilds from scratch with one command. Production is the user's: the agent
+  holds no credential for it, and the user deploys it by hand.
+- **Secrets never enter the session.** Every value lives in the secrets manager (the
+  `-dev` and `-prod` vaults); `scripts/push_secrets.py` copies them to the platform.
+  Commands that need one get it injected at runtime (`op run --env-file=<refs> --
+  <command>`). Never read `.env` files and never print a secret's value. No real value is
+  kept in a `.env` file, and only the user adds or changes a secret.
 - **The safeguards stay on**: the package manager's release-age and install-script
-  settings, the secret scan in CI, and the backup job. Never switch one off or bypass it
+  settings, the secret scan in CI, the backup job, and the development rebuild. Never switch one off or bypass it
   to get a build through; a package that needs its install script is allowed by name, on
   the user's word. They are listed in the plan's "Safeguards" table.
 - **Docs change with code**, in the same PR. The docs gate enforces it.

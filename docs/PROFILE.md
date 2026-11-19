@@ -186,7 +186,7 @@ throwaway local database to check SQL). Omit to allow none.
 | Gate | Needs the profile? | What it does |
 |---|---|---|
 | **Destroy gate** | no | Denies the destructive actions that reach beyond development (MODEL.md section 12.2, layer 5, has the list). Asks before any edit to `project.toml` or `.claude/settings*.json`. |
-| **Ops gate and merge guard** | yes | The merge guard, secret-printing denials (the Infisical CLI's own commands and whatever `infisical run` or `railway run` runs included). |
+| **Ops gate and merge guard** | yes | The merge guard, secret-printing denials (the 1Password and Infisical CLIs' own commands, and whatever `op run`, `infisical run` or `railway run` runs, included). |
 | **Docs gate** | yes | `[docs]`. |
 
 How they behave when the profile is missing or broken. The gates fail closed, but a

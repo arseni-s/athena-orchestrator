@@ -2067,6 +2067,84 @@
  {
   "tool": "Bash",
   "input": {
+   "command": "op item delete railway-production --vault app-prod"
+  },
+  "expect": "deny",
+  "rule": "op-delete",
+  "note": "a 1Password vault holds production values too"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "op.exe vault delete app-dev"
+  },
+  "expect": "deny",
+  "rule": "op-delete",
+  "note": "a vault, .exe"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "op document delete key.pfx --archive"
+  },
+  "expect": "deny",
+  "rule": "op-delete",
+  "note": "a document, even archived"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "op --account my.1password.com item delete x"
+  },
+  "expect": "deny",
+  "rule": "op-delete",
+  "note": "an account flag before the command"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "op run --env-file secrets.dev.tpl -- op item delete x"
+  },
+  "expect": "deny",
+  "rule": "op-delete",
+  "note": "bypass: run through the injector"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "op run --env-file secrets.dev.tpl -- uv run pytest"
+  },
+  "expect": "none",
+  "note": "an everyday injected command"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "op item list --vault app-dev"
+  },
+  "expect": "none",
+  "note": "a listing deletes nothing"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git branch -d op && echo delete done"
+  },
+  "expect": "none",
+  "note": "op as a plain word, delete elsewhere"
+ },
+ {
+  "tool": "mcp__1password__delete_item",
+  "input": {
+   "item": "x"
+  },
+  "expect": "deny",
+  "rule": "mcp-delete",
+  "note": "a 1Password MCP delete"
+ },
+ {
+  "tool": "Bash",
+  "input": {
    "command": "infisical --env prod secrets delete API_KEY"
   },
   "expect": "deny",

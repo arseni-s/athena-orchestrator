@@ -50,7 +50,7 @@ class Cases(unittest.TestCase):
     def test_every_rule_has_cases(self) -> None:
         rules = {c["rule"] for c in CASES if c.get("rule")}
         self.assertEqual(rules, {"railway-delete", "railway-api", "http-delete", "git-main",
-                                 "git-force-unnamed", "gh-destroy", "infisical-delete", "mcp-delete", "write-mutation",
+                                 "git-force-unnamed", "gh-destroy", "infisical-delete", "op-delete", "mcp-delete", "write-mutation",
                                  "write-script", "script-run", "gate-edit", "gate error"})
 
     def test_bypass_turns_ask_into_deny(self) -> None:

@@ -252,6 +252,18 @@ class Secrets(unittest.TestCase):
         ("infisical run --command=printenv", bash), ("infisical secrets-manager run -- printenv", bash),
         ("infisical run --env dev --path /api -- cat .env", bash), ("infisical.exe run -- printenv", powershell),
         ("infisical run -- powershell -Command 'Get-ChildItem env:'", powershell),
+        # 1Password: commands that show values, a token or a share link
+        ("op read op://app-dev/railway-development/API_KEY", bash), ("op.exe read op://a/b/c", powershell),
+        ("op read --out-file key.pem op://a/b/c", bash), ("op inject -i secrets.tpl", bash),
+        ("op inject -i secrets.tpl -o .env.local", bash),
+        ("op item get railway-development --vault app-dev --reveal --format json", bash),
+        ("op item get x --fields label=password", bash), ("op document get key.pfx --out-file key.pfx", bash),
+        ("op item share x --expires-in 1h", bash), ("op signin", bash), ("eval $(op signin)", bash),
+        ("op signin --raw", powershell), ("op service-account create agent --vault app-dev:read_items", bash),
+        ("op connect token create t --server s", bash), ("op events-api create siem", bash),
+        ("op --account my.1password.com read op://a/b/c", bash), ("op run --no-masking -- pnpm test", bash),
+        ("op run --env-file=secrets.dev.tpl -- printenv", bash), ("op run -- sh -c 'env | sort'", bash),
+        ('op run --env-file secrets.dev.tpl -- node -e "console.log(process.env)"', bash),
         ("railway run printenv", bash), ("railway run -s web -- env", bash),
         ("railway ssh -s web printenv", bash), ("railway ssh -- printenv", bash),
         # the whole environment printed by a one-liner
@@ -271,6 +283,11 @@ class Secrets(unittest.TestCase):
         "python -c 'import os; print(os.environ.get(1))'", "grep infisical README.md",
         "infisical run --watch -- pnpm dev", "pnpm add @infisical/sdk", "infisical run -- echo done",
         'git commit -m "infisical export is denied"',
+        "op run --env-file=secrets.dev.tpl -- uv run pytest", "op run -- pnpm db:migrate", "op whoami",
+        "op --version", "op item list --vault app-dev", "op vault list", "op vault get app-dev",
+        "op account list", "op service-account ratelimit", "op item template list", "op read --help",
+        "grep -rn op src", "echo op", "op frobnicate", 'git commit -m "op read is denied"',
+        "python scripts/push_secrets.py development --check",
     ]
     # Infisical commands that change secrets, switch the login, or have no rule: they ask.
     ASKED = [
@@ -283,6 +300,11 @@ class Secrets(unittest.TestCase):
         ("infisical secrets folders create --name x", "changes secrets"),
         ("infisical token renew abc", "no rule for"), ("infisical vault set file", "no rule for"),
         ("mywrap infisical export", "mentions infisical"),
+        ("op item create --category login --title x", "changes items"), ("op item edit x password=1", "changes items"),
+        ("op item delete x", "changes items"), ("op vault create app-prod", "changes items"),
+        ("op vault user grant --vault app-prod --user x", "changes items"), ("op account add", "1Password account"),
+        ("op signout", "1Password account"), ("op plugin run -- gh pr list", "no rule for"),
+        ("op item frob x", "no rule for"), ("mywrap op read op://a/b/c", "mentions op"),
     ]
 
     def test_denied(self) -> None:
@@ -298,7 +320,7 @@ class Secrets(unittest.TestCase):
                 self.assertEqual(decision(bash(command)), "none")
                 self.assertEqual(decision(powershell(command)), "none")
 
-    def test_infisical_changes_and_logins_ask(self) -> None:
+    def test_secrets_manager_changes_and_logins_ask(self) -> None:
         for command, why in self.ASKED:
             with self.subTest(command=command):
                 d, reason = decide(bash(command))
@@ -306,16 +328,19 @@ class Secrets(unittest.TestCase):
                 self.assertIn(why, reason)
 
     def test_a_merge_behind_an_injector_meets_the_merge_guard(self) -> None:
-        d, reason = decide(bash("infisical run -- gh pr merge 5 --squash"))
-        self.assertEqual(d, "deny")
-        self.assertRegex(reason, "^MERGE GUARD")
+        for command in ("infisical run -- gh pr merge 5 --squash", "op run -- gh pr merge 5 --squash"):
+            with self.subTest(command=command):
+                d, reason = decide(bash(command))
+                self.assertEqual(d, "deny")
+                self.assertRegex(reason, "^MERGE GUARD")
 
 
 class ProfileStates(unittest.TestCase):
     def test_no_profile_turns_every_opinion_into_ask(self) -> None:
         for command in ["railway up", "railway restart", "printenv", "gh pr merge 5", "git push origin main",
                         "git push", "docker push x/y", "mywrap railway up", "infisical export",
-                        "infisical run -- printenv", "infisical login"]:
+                        "infisical run -- printenv", "infisical login", "op read op://a/b/c",
+                        "op run -- printenv", "op item edit x"]:
             with self.subTest(command=command):
                 d, reason = decide(bash(command), state="absent")
                 self.assertEqual(d, "ask")

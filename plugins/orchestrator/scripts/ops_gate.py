@@ -17,16 +17,18 @@ Configured by the project profile (`.claude/orchestration/project.toml`, docs/PR
                  `set` or `export`, the PowerShell `env:` provider, `.env` files read by a
                  reader (`cat`, `Get-Content`, `grep`, ...), Railway variable listings, the
                  Infisical commands that show values or a token (`secrets`, `secrets get`,
-                 `export`, `user get token`, `login --plain`), and a one-line dump of the
-                 whole environment (`console.log(process.env)`, `print(os.environ)`). The
-                 command an injector runs is read too: `infisical run -- printenv`,
-                 `railway run env`, `railway ssh printenv`. This stops accidents, not a
-                 determined process (docs/MODEL.md section 12).
+                 `export`, `user get token`, `login --plain`), the 1Password ones (`op
+                 read`, `op inject`, `op item get`, `op document get`, `op item share`,
+                 `op signin`, `op run --no-masking`, a token create), and a one-line dump
+                 of the whole environment (`console.log(process.env)`, `print(os.environ)`).
+                 The command an injector runs is read too: `infisical run -- printenv`,
+                 `op run -- env`, `railway run env`, `railway ssh printenv`. This stops
+                 accidents, not a determined process (docs/MODEL.md section 12).
     ask          Commands the gate cannot read well enough to rule out a hidden merge or
                  push: an encoded PowerShell command, a shell reading commands from input,
                  a git or gh subcommand that is not built in, a ref named by a variable.
-                 Also an Infisical command that changes secrets, switches the login, or
-                 has no rule here.
+                 Also an Infisical or 1Password command that changes secrets, switches the
+                 login, or has no rule here.
 
 Without a profile (a project that has not adopted the plugin), every opinion above becomes
 "ask". With a profile that cannot be read or checked, every shell call asks.
@@ -463,11 +465,76 @@ def infisical(args: list[str]) -> Verdict:
     return _ask(INFISICAL_OTHER)
 
 
-PROGRAMS = {"railway": railway, "git": git, "gh": gh, "docker": docker, "infisical": infisical}
+# 1Password CLI (`op`, version 2), read from its command reference. Only the words before
+# `--` are its own. A command that shows values, a token or a share link is denied; one that
+# changes items, vaults, users or the login asks. `op` is also a common short word
+# (`grep -rn op src`), so only its real top-level commands get an opinion: an unknown word
+# after `op` is an error in op itself and runs nothing. A known command with a subcommand
+# that has no rule here asks.
+OP_VALUE_FLAGS = frozenset({
+    "--account", "--config", "--encoding", "--format", "--session", "--env-file", "--environment",
+    "--vault", "--fields", "--out-file", "-o", "--in-file", "-i", "--file-mode", "--categories",
+    "--tags", "--title", "--category", "--template", "--expires-in", "--vaults", "--name", "--url",
+    "--emails", "--view-once", "--file-name",
+})
+OP_COMMANDS = {"account", "connect", "document", "environment", "events-api", "group", "inject",
+               "item", "plugin", "read", "run", "service-account", "signin", "signout", "ssh",
+               "update", "user", "vault", "whoami", "completion", "help"}
+OP_VALUES = "prints secret values from 1Password into the transcript (or into a file the session can read)"
+OP_TOKEN = "prints a 1Password session or service account token into the transcript"
+OP_SHARE = "makes a share link that opens a 1Password item"
+OP_UNMASKED = "turns off op run's masking, so secret values the command prints reach the transcript"
+OP_CHANGE = ("changes items, vaults, users or groups in 1Password (the user does that, so no "
+             "value passes through the session)")
+OP_LOGIN = "changes which 1Password account or login the session uses"
+OP_OTHER = "is a 1Password command the gate has no rule for (it may show or change secrets)"
+OP_READS = {"", "list", "ls", "get"}
+
+
+def onepassword(args: list[str]) -> Verdict:
+    own = args[:args.index("--")] if "--" in args else args
+    pos = _positional(own, OP_VALUE_FLAGS)
+    flags = _flags(own)
+    top, sub, third = (pos + ["", "", ""])[:3]
+    if top not in OP_COMMANDS or top in ("whoami", "completion", "help") or flags & {"h", "help"}:
+        return NONE
+    if top == "run":  # what it runs is read by `_injected`
+        return _guard(Secret(OP_UNMASKED)) if "no-masking" in flags else NONE
+    if top in ("read", "inject"):
+        return _guard(Secret(OP_VALUES))
+    if top in ("item", "document"):
+        if sub == "get":
+            return _guard(Secret(OP_VALUES))
+        if sub == "share":
+            return _guard(Secret(OP_SHARE))
+        if sub in ("list", "ls") or (top, sub) == ("item", "template"):
+            return NONE
+        return _ask(OP_CHANGE if sub in ("create", "edit", "delete", "move") else OP_OTHER)
+    if top in ("vault", "user", "group"):
+        return NONE if sub in OP_READS else _ask(OP_CHANGE)
+    if top == "signin":
+        return _guard(Secret(OP_TOKEN))
+    if top in ("signout", "account"):
+        return NONE if top == "account" and sub in OP_READS else _ask(OP_LOGIN)
+    if top == "service-account":
+        if sub == "ratelimit":
+            return NONE
+        return _guard(Secret(OP_TOKEN)) if sub == "create" else _ask(OP_OTHER)
+    if top in ("connect", "events-api"):
+        if "create" in (sub, third) and (top == "events-api" or sub == "token"):
+            return _guard(Secret(OP_TOKEN))
+        return NONE if third in OP_READS - {""} or sub in ("list", "ls") else _ask(OP_OTHER)
+    return _ask(OP_OTHER)  # plugin, ssh, environment, update
+
+
+PROGRAMS = {"railway": railway, "git": git, "gh": gh, "docker": docker, "infisical": infisical,
+            "op": onepassword}
 PLATFORM_PROGRAMS = {"railway", "docker"}
 # Programs that run another command with secrets in its environment, and the subcommands
-# that do it. That command is read as well: `infisical run -- printenv`, `railway ssh env`.
-INJECTORS = {"infisical": ({"run"}, INFISICAL_VALUE_FLAGS), "railway": ({"run", "ssh"}, RAILWAY_VALUE_FLAGS)}
+# that do it. That command is read as well: `infisical run -- printenv`, `op run -- env`,
+# `railway ssh env`.
+INJECTORS = {"infisical": ({"run"}, INFISICAL_VALUE_FLAGS), "railway": ({"run", "ssh"}, RAILWAY_VALUE_FLAGS),
+             "op": ({"run"}, OP_VALUE_FLAGS)}
 
 # --- commands that print secrets (docs/MODEL.md section 12.3, rule 3) ----------------------
 # Kept out of PROGRAMS: these are everyday words (`set`, `head`, `type`), so the backstop

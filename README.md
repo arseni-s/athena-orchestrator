@@ -80,17 +80,21 @@ Packages the size of one reviewable PR, with runnable Verify steps, go best.
 The agent works with real credentials while it builds, so the plugin limits what a
 mistake, a manipulated agent or a poisoned dependency can do with them:
 
-- **Secrets stay out of the session.** Commands get them at runtime from a secrets
-  manager (the gates know Infisical: `infisical run -- <command>`). The gates deny
-  commands that print them, including the secrets manager's own listing and export
-  commands. The agent uses its own read-only identity there, never your login.
-- **Destructive commands are denied**, even with your approval: deletes on the hosting
-  platform, the git host and the secrets manager, and destructive SQL on a remote
-  database. You run those yourself.
-- **Four safeguards per project**, tracked in the plan and set up by `adopt`'s first
+- **Secrets stay out of the session.** Every value lives in 1Password by default (a
+  `-dev` and a `-prod` vault per project; Infisical is the alternative), and a push script
+  copies each vault to its platform environment. Commands get secrets at runtime
+  (`op run --env-file=<refs> -- <command>`). The gates deny commands that print them,
+  including the secrets manager's own read and export commands. The agent uses its own
+  read-only identity, which reaches development values only, never your login.
+- **Destruction beyond development is denied**, even with your approval: deleting the
+  hosting platform's project or an environment, the repository, the main branch, or
+  anything in the secrets manager. You run those yourself. Inside development the agent
+  may reset, drop and delete: development rebuilds from scratch with one command.
+- **Six safeguards per project**, tracked in the plan and set up by `adopt`'s first
   packages: a backup the hosting platform cannot delete, with a tested restore;
   dependencies installed only after a 7-day wait and without install scripts; a secret
-  scan in CI; and the agent's own identity in the secrets manager.
+  scan in CI; the agent's own identity in the secrets manager; the development rebuild;
+  and production out of the agent's reach, proved.
 
 The gates stop accidents, not a determined process: a program that was handed a secret
 can still print it. The reasoning, and what the plugin cannot do for you, is in

@@ -63,7 +63,7 @@ that writes. Never read `.env` files.
 | Database and migrations | `migrations/`, `db/`, `alembic/`, `prisma/` | `paths.full_panel`, `paths.ops`, the event-table package |
 | User interface | `templates/`, `static/`, `src/components/`, `app/`, `pages/`, `frontend/` | `paths.ux`, and whether `ux.md` is needed |
 | Auth, config, secrets handling | `auth/`, `config.*`, `.env.example`, lockfiles | `paths.security` |
-| Secrets on disk | by name only, never read: tracked `.env` files (`git ls-files`), untracked ones (`.env`, `.env.local`); `.infisical.json` | the "identity" safeguard row; a tracked `.env` file that is not an example file is the first thing in the report |
+| Secrets on disk | by name only, never read: tracked `.env` files (`git ls-files`), untracked ones (`.env`, `.env.local`); `.infisical.json`; `op://` reference files; the platform's variable names (never values) | the secrets manager, the "identity" safeguard row, the push script's targets; a tracked `.env` file that is not an example file is the first thing in the report |
 | Dependency install settings | the lockfile (which package manager), `.npmrc`, `pnpm-workspace.yaml`, `bunfig.toml`, `pyproject.toml` / `uv.toml`, and how CI installs | the "dependencies" safeguard row |
 | Secret scanning | CI steps, `.gitleaks.toml`, `.infisical-scan.toml`, pre-commit config | the "secrets are caught" row; `{{secret_scan}}` |
 | Backups | scheduled workflows, backup or dump scripts, the hosting config, the runbook | the "backup" safeguard row |
@@ -87,6 +87,9 @@ mapping.
      production by hand (auto-deploy off, a chosen commit from the platform's dashboard);
    - the command that **rebuilds development from scratch**, if there is one, and what
      in development was set up by hand and is not yet in seed or setup code;
+   - which credentials **act in the real world with no test account** (a portal login, a
+     signing key, a payment account): they stay in production only, and development
+     works against a fake of that service;
    - the **hard rules**: what must never happen;
    - which code is **critical** (where a bug is visible or loses data:
      `paths.full_panel`);
@@ -141,7 +144,7 @@ branch. Writes go through the file tools, never a shell heredoc.
    ADR index, the spec template, the log index, the PR template, and `ci.yml` when the
    project has no CI. CI gets one step per gate command, after the setup steps the
    toolchain needs; those install from the lockfile only. Before them comes the
-   secret-scan step (`{{secret_scan}}`): `infisical scan` or `gitleaks` over the pull
+   secret-scan step (`{{secret_scan}}`): `gitleaks` or `infisical scan` over the pull
    request's commits, with the scanner installed at a version you looked up and pinned,
    never `latest` and never a script piped into a shell. If you cannot pin one, write a
    `TODO(adopt)` line there, and the scan becomes part of the safeguards package. A
@@ -154,32 +157,40 @@ branch. Writes go through the file tools, never a shell heredoc.
    (the orchestration model, section 13), one row and one short spec each, from the spec
    template, with IDs that fit the plan's scheme:
    - **access** (owner `human`): the wall around production (the orchestration model,
-     section 12). The access inventory; the secrets manager with variables synced to
-     every platform; tokens scoped to this project and to the **development**
+     section 12). The access inventory; the secrets manager, **1Password unless the
+     project already runs Infisical or the user picks it**: vaults `<project>-dev` and
+     `<project>-prod`, an item per platform environment (`railway-development`,
+     `railway-production`) with one field per variable, every value moved there from the
+     platform and from local files (rotating any that ever showed in a transcript, log or
+     commit), and `scripts/push_secrets.py` from the template to copy each item to its
+     environment (the user runs the production push); credentials that act in the real
+     world with no test account go in the `-prod` vault only; tokens scoped to this
+     project and to the **development**
      environments only, with expiry dates and no account-wide token; production's
      auto-deploy switched off, so it deploys only when the user starts it; branch
      protection on the main branch (pull request and the required check, no force push,
      no deletion, nobody exempt). The agent's database role owns the development
      database; in production it gets no role, or a read-only one on named schemas. In
-     the secrets manager the agent gets **its own machine identity**: read-only
-     (Infisical: the Viewer role), with no production values (where the plan cannot
-     limit an identity to an environment, production secrets go in a second
-     secrets-manager project the identity is not a member of), and an access-token
-     lifetime of hours. Its client secret stays in the user's password manager; a
-     launcher outside the repo swaps it for an access token before the agent starts. The
+     the secrets manager the agent gets **its own identity**: a 1Password service account
+     with read access to the `-dev` vaults only (one may serve every project's `-dev`
+     vault), or an Infisical machine identity with the Viewer role in a project without
+     production values. Its token stays in the user's password manager; a launcher
+     outside the repo puts it in the session's environment before the agent starts. The
      agent's git host token is fine-grained, for this repository only, with no
      administration, environments or deployments permission. The user keeps no CLI login
      of the hosting platform and no admin session of the secrets manager on this
      machine. Real values leave every `.env` file. Its Verify steps prove the wall: each
      agent credential pointed at production is refused (a call that changes nothing even
      if allowed, never a write and never a listing that prints values), a direct push to
-     the main branch is refused, and the identity reads a development secret while a
-     write with it is refused;
+     the main branch is refused, the identity cannot open the `-prod` vault (a listing of
+     item names, never a value), and `push_secrets.py development --check` reports
+     nothing only on the platform;
    - **dev rebuild** (owner `orchestrator`, unless the safeguard is `done`): one command
      that takes an empty development environment to a working one: migrations, a seed
      script with invented data (never a copy of production), and whatever else
      development holds outside the database (files in storage, test users in a sign-in
-     service, webhooks). Everything someone set up in development by hand goes into it.
+     service, webhooks), with development's variables pushed from the `-dev` vault by
+     `push_secrets.py development`. Everything someone set up in development by hand goes into it.
      Its Verify steps run the command against an empty database and show the app and the
      end-to-end tests working on the result;
    - **backup** (owner `human`, only when the project has a database and the backup
