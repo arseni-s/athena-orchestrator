@@ -160,10 +160,13 @@ branch. Writes go through the file tools, never a shell heredoc.
      section 12). The access inventory; the secrets manager, **1Password unless the
      project already runs Infisical or the user picks it**: vaults `<project>-dev` and
      `<project>-prod`, an item per platform environment (`railway-development`,
-     `railway-production`) with one field per variable, every value moved there from the
-     platform and from local files (rotating any that ever showed in a transcript, log or
-     commit), and `scripts/push_secrets.py` from the template to copy each item to its
-     environment (the user runs the production push); credentials that act in the real
+     `railway-production`) with one field per **secret**, every secret moved there from
+     the platform and from local files (rotating any that ever showed in a transcript, log
+     or commit), and `scripts/push_secrets.py` from the template to copy each item to its
+     environment (the user runs the production push); plain settings in
+     `config/development.env` and `config/production.env`, committed, read by the app
+     from the file `APP_ENV` names (`APP_ENV` is the one plain variable on the platform;
+     defaults stay in code; the platform's own references stay on the platform); credentials that act in the real
      world with no test account go in the `-prod` vault only; tokens scoped to this
      project and to the **development**
      environments only, with expiry dates and no account-wide token; production's

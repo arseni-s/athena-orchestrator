@@ -28,8 +28,10 @@ Breaking one of these is a Blocker, whatever a spec says.
   The destroy gate denies them. Inside development, resets, drops and deletes are allowed:
   development rebuilds from scratch with one command. Production is the user's: the agent
   holds no credential for it, and the user deploys it by hand.
-- **Secrets never enter the session.** Every value lives in the secrets manager (the
-  `-dev` and `-prod` vaults); `scripts/push_secrets.py` copies them to the platform.
+- **Secrets never enter the session.** Every secret lives in the secrets manager (the
+  `-dev` and `-prod` vaults); `scripts/push_secrets.py` copies them to the platform. Plain
+  settings live in `config/<environment>.env`, committed, and the app reads the one
+  `APP_ENV` names.
   Commands that need one get it injected at runtime (`op run --env-file=<refs> --
   <command>`). Never read `.env` files and never print a secret's value. No real value is
   kept in a `.env` file, and only the user adds or changes a secret.

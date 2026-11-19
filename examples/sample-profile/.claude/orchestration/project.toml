@@ -43,9 +43,10 @@ full = ["H3", "H4"]
 [paths]
 full_panel = ["harbormaster/booking/", "harbormaster/pricing/", "migrations/"]
 design_review = ["harbormaster/booking/", "migrations/"]
-ops = ["migrations/", "scripts/", ".github/workflows/", "Dockerfile", "railway.*"]
+ops = ["migrations/", "scripts/", ".github/workflows/", "Dockerfile", "railway.*", "config/production.env"]
 security = [
   ".claude/",
+  "config/production.env",
   ".github/workflows/",
   "harbormaster/auth/",
   "harbormaster/config.py",

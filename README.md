@@ -80,7 +80,7 @@ Packages the size of one reviewable PR, with runnable Verify steps, go best.
 The agent works with real credentials while it builds, so the plugin limits what a
 mistake, a manipulated agent or a poisoned dependency can do with them:
 
-- **Secrets stay out of the session.** Every value lives in 1Password by default (a
+- **Secrets stay out of the session.** Every secret lives in 1Password by default (a
   `-dev` and a `-prod` vault per project; Infisical is the alternative), and a push script
   copies each vault to its platform environment. Commands get secrets at runtime
   (`op run --env-file=<refs> -- <command>`). The gates deny commands that print them,

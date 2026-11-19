@@ -36,9 +36,10 @@ going until nothing can start, a stop condition hits, or the user interrupts.
   and never use a login you find on the machine that reaches production. You use only the
   access the plan's "Access inventory" lists, with credentials injected at runtime
   (`op run --env-file=<refs> -- <command>`, or `infisical run -- <command>`). Never read
-  `.env` files or print secret values. Development's variables come from the `-dev` vault
+  `.env` files or print secret values. Development's secrets come from the `-dev` vault
   through `scripts/push_secrets.py development`; never set one on the platform by hand, and
-  never run the production push.
+  never run the production push. Plain settings live in `config/<environment>.env`,
+  committed; a change to `config/production.env` is flagged, setting by setting.
   The destroy gate denies the few destructive actions that reach beyond development:
   never work around a gate.
 - **Development stays rebuildable.** Nothing in development exists only where it was
@@ -249,7 +250,9 @@ deviation, every dismissed or deferred finding, and every status correction. Whe
 whether something is worth logging, log it. Mark an entry **Flag: review** when it changes
 what `rubric.user_visible` describes, chooses a default for an open question, deviates
 from the spec, changes what production will do once the user deploys it (a migration, a
-production setting, a deploy step), or dismisses a Blocker.
+production setting, a deploy step), or dismisses a Blocker. A diff that touches
+`config/production.env` always gets one such entry per changed setting: its name, the old
+and new value, and why.
 
 **Scope**: work found outside the spec is not done. It becomes a follow-up. A minimal
 spec deviation is allowed when it touches no ADR or hard rule, and it is logged with

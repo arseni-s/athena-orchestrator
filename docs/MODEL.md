@@ -648,10 +648,26 @@ directly never passes through them, which is why the server-side layers come fir
    used: pick another route. Give every token an expiry date where the platform offers
    one.
 
-   **The secrets manager is 1Password by default (19 Nov 2026).** Every value lives there,
-   once; the platform holds a copy. Each project has two vaults, `<project>-dev` and
+   **Where each kind of variable lives (19 Nov 2026):**
+
+   | Kind | Where | How it reaches the app |
+   |---|---|---|
+   | Secrets (tokens, keys, passwords, signing keys) | the secrets manager, a `-dev` and a `-prod` vault | the push script copies them to the platform's variables |
+   | Plain settings (limits, flags, model names, IDs that are not secret) | `config/<environment>.env`, committed | the app reads the file named by `APP_ENV`, the one plain variable on the platform; defaults stay in code |
+   | The platform's own values (references such as `${{Postgres.DATABASE_URL}}`, `RAILWAY_*`) | the platform | the platform; the dev rebuild recreates them |
+
+   Settings are not secrets: in the repo they get history, review and a diff, and a change
+   reaches production when the human next deploys. The file is not named `.env`, which the
+   gates treat as a secret file the agent may not read. A diff that touches
+   `config/production.env` always gets the ops and security lenses (`paths`), and every
+   changed setting is flagged for review. A platform reference is never copied into the
+   secrets manager as a value: pushed back, it would freeze a link that the platform keeps
+   current.
+
+   **The secrets manager is 1Password by default.** Every secret lives there, once; the
+   platform holds a copy. Each project has two vaults, `<project>-dev` and
    `<project>-prod`, and in each vault one item per platform environment
-   (`railway-development`, `railway-production`) with one field per variable: the label is
+   (`railway-development`, `railway-production`) with one field per secret: the label is
    the variable's name. A script in the repo (the `push_secrets.py` template) copies an
    item to its environment, passing values on standard input, never on a command line:
    the dev rebuild runs it for development, and the human runs it for production from
@@ -835,8 +851,8 @@ with one row for each, and what proves it.
    fixtures the end-to-end tests expect, a setting changed in a dashboard) is turned into
    seed or setup code in the next package, so the rebuild brings it back. The seed data is
    invented, never a copy of production, and holds no real secret. Development's
-   variables come back the same way: the rebuild runs the push script, which copies them
-   from the `-dev` vault. Proved by running the
+   secrets come back the same way: the rebuild runs the push script, which copies them
+   from the `-dev` vault; its settings are in `config/development.env`. Proved by running the
    command once against an empty environment and recording the output, and again
    whenever a migration, the seed or the setup changes; CI can do it on every PR. This is
    what makes the agent's full control of development safe: a destroyed development

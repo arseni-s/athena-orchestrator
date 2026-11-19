@@ -1,9 +1,11 @@
-"""Copies one environment's variables from 1Password to Railway (athena-orchestrator template).
+"""Copies one environment's secrets from 1Password to Railway (athena-orchestrator template).
 
-1Password is where every value lives; Railway holds a copy. Each environment has one 1Password
-item, `railway-<environment>`, with one field per variable: the field's label is the variable's
+1Password is where every secret lives; Railway holds a copy. Each environment has one 1Password
+item, `railway-<environment>`, with one field per secret: the field's label is the variable's
 name (`TELEGRAM_BOT_TOKEN`), its value the value. Fields whose label is not an UPPER_CASE name
-are ignored, so the item can carry notes.
+are ignored, so the item can carry notes. Plain settings are not here: they live in
+`config/<environment>.env`, committed, and the app reads them itself. Railway's own references
+(`${{Postgres.DATABASE_URL}}`) stay on Railway and are never put in the item.
 
     python scripts/push_secrets.py development           push development (the agent may run it)
     python scripts/push_secrets.py development --check   compare names only, change nothing

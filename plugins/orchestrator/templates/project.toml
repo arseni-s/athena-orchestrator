@@ -41,8 +41,10 @@ full = []
 # Path patterns: a trailing / is a folder, * stays within one segment, ** spans segments.
 full_panel = []
 design_review = []
-ops = [".github/workflows/"]
-security = [".claude/", ".github/workflows/", ".env.example"]
+# config/production.env holds production's plain settings: a change to it always gets the
+# ops and security lenses.
+ops = [".github/workflows/", "config/production.env"]
+security = [".claude/", ".github/workflows/", ".env.example", "config/production.env"]
 # Empty: the project has no user interface, and the UX lens never runs.
 ux = []
 

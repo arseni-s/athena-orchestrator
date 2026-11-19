@@ -42,8 +42,11 @@ wherever it differs:
 - **Platform rules cover Railway, git, gh, `docker push`, and the 1Password and Infisical
   CLIs** only. Add another platform's rules when a project uses it.
 - **1Password is the default secrets manager (19 Nov 2026)**, MODEL.md section 12.3. Every
-  value lives there once, in a `-dev` and a `-prod` vault per project, one item per
-  platform environment. `templates/push_secrets.py` copies an item to its Railway
+  secret lives there once, in a `-dev` and a `-prod` vault per project, one item per
+  platform environment. Plain settings live in `config/<environment>.env`, committed and
+  read by the app through `APP_ENV`; a change to `config/production.env` always gets the
+  ops and security lenses and is flagged. No import mode: secrets are entered by hand,
+  once. `templates/push_secrets.py` copies an item to its Railway
   environment (values on stdin; production with `--skip-deploys`, run by the user only).
   The agent's service account reads the `-dev` vaults only. Infisical stays supported for
   projects that use it; its free plan's per-account limits ruled it out as the default.
