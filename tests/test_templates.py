@@ -57,7 +57,7 @@ class Profile(unittest.TestCase):
         filled = PLACEHOLDER.sub(lambda m: f"sample {m.group(1)}", text("project.toml"))
         data, problems = athena_profile.check(tomllib.loads(filled))
         self.assertEqual(problems, [])
-        self.assertEqual(data["access"]["phase"], "development")
+        self.assertEqual(data["deploy"]["dev"], "sample deploy_dev")
 
 
 class MatchesTheSkill(unittest.TestCase):

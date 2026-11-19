@@ -1,23 +1,18 @@
 """PreToolUse hook on Bash and PowerShell: the ops gate and the merge guard (athena-orchestrator).
 
 Configured by the project profile (`.claude/orchestration/project.toml`, docs/PROFILE.md):
-`access.phase`, `repo.main`, `merge.required_check` and `deploy.freeze_check`. Destructive
-commands are not this gate's job: `destroy_gate.py` denies them in every phase.
+`repo.main` and `merge.required_check`. Destructive commands are not this gate's job:
+`destroy_gate.py` denies the ones whose reach spans environments.
 
-    development  Deploys and platform commands (Railway, `docker push`, release tags and
-                 workflows) run without a prompt. A deploy is denied while
-                 `deploy.freeze_check` fails: exit 1 (deploys blocked), any other non-zero
-                 exit, a timeout, or a check that cannot start.
-    observe      Deploys, merges and every Railway command outside a short read allowlist
-                 are denied: the project is read-only from this session.
-    deny         Merge guard, in both phases: `gh pr merge` (or a `gh api` merge) unless
-                 every check on the PR's head commit passed and `merge.required_check`
-                 succeeded, as `gh pr view` reports; `--auto`; a `git push` to a main branch
-                 (refspec, `--all`/`--mirror`, or a bare push while the current branch is a
-                 main branch). It fails closed: `gh` or `git` missing, failing, timing out
-                 or printing something unreadable denies. A merge whose checks passed also
-                 deploys to test, so the freeze check runs (once per command): exit 1
-                 denies; any other failure asks.
+    allow        Deploys and platform commands (Railway, `docker push`, release tags and
+                 workflows) run without a prompt: the agent's credentials reach development
+                 only, and production is deployed by the user by hand (docs/MODEL.md 12).
+    deny         Merge guard: `gh pr merge` (or a `gh api` merge) unless every check on the
+                 PR's head commit passed and `merge.required_check` succeeded, as `gh pr
+                 view` reports; `--auto`; a `git push` to a main branch (refspec,
+                 `--all`/`--mirror`, or a bare push while the current branch is a main
+                 branch). It fails closed: `gh` or `git` missing, failing, timing out or
+                 printing something unreadable denies.
     deny         Commands that print secrets into the transcript: `printenv`, a bare `env`,
                  `set` or `export`, the PowerShell `env:` provider, `.env` files read by a
                  reader (`cat`, `Get-Content`, `grep`, ...), Railway variable listings, the
@@ -64,9 +59,8 @@ from typing import Any, Optional, Union
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import athena_profile  # noqa: E402  (the sibling module: profile loading and path patterns)
 
-FREEZE_TIMEOUT_S = 15  # well inside the 30 s hook timeout: a hook timeout fails open
-# Merge guard: all its `gh`/`git` calls share one budget, so freeze (15 s) plus guard
-# (12 s) stays inside the 30 s hook timeout. Tests replace GH_CMD and GIT_CMD in-process.
+# Merge guard: all its `gh`/`git` calls share one budget, well inside the 30 s hook
+# timeout (a hook timeout fails open). Tests replace GH_CMD and GIT_CMD in-process.
 GUARD_BUDGET_S = 12
 GH_TIMEOUT_S = 10
 GIT_TIMEOUT_S = 5
@@ -111,7 +105,7 @@ class Secret(str):
 
 class Platform(str):
     """An ask reason from a platform rule (a Railway command outside the read allowlist).
-    Development lets these run; observe denies them; without a profile they ask."""
+    With a profile these run; without one they ask."""
 
 
 # A merge guard verdict: a deny reason, or a check to run before the call is allowed.
@@ -267,7 +261,7 @@ def _push_guard(rest: list[str], refspecs: list[str], dirs: list[str],
     if any(_main_ref(dst) for dst in dests):
         return "pushes to the main branch (master/main) directly"
     if not refspecs and "tags" in _flags(rest):
-        return None  # `git push --tags` pushes tags only (the deploy freeze covers it)
+        return None  # `git push --tags` pushes tags only, never a branch
     if not refspecs or any(spec.lstrip("+") in ("head", "@") for spec in refspecs):
         return Push(tuple(dirs), git_dir)
     return None
@@ -1125,64 +1119,10 @@ def merge_guard(guards: list[Guard], cwd: str) -> list[str]:
     return problems
 
 
-def _text(out: str | bytes | None) -> str:
-    return out.decode("utf-8", "replace") if isinstance(out, bytes) else (out or "")
-
-
-# --- freeze: `deploy.freeze_check` ----------------------------------------------------------
-
-NO_CHECK = "no freeze check configured (deploy.freeze_check)"
-
-
-def freeze_status(root: str, command: Optional[str]) -> tuple[Optional[int], str]:
-    """(exit code, report) of the profile's freeze check, run in the repo root. The code is
-    None when it did not run or timed out; with no check configured it is (0, NO_CHECK).
-
-    The command is split like a POSIX shell line (use forward slashes in paths); it is run
-    directly, not through a shell. Exit 0: clear. Exit 1: deploys are blocked. Anything
-    else: the check could not decide."""
-    if not command:
-        return 0, NO_CHECK
-    try:
-        out = subprocess.run(shlex.split(command), cwd=root, capture_output=True, text=True,
-                             encoding="utf-8", errors="replace", timeout=FREEZE_TIMEOUT_S,
-                             stdin=subprocess.DEVNULL)
-    except subprocess.TimeoutExpired as exc:
-        partial = (_text(exc.stdout) + _text(exc.stderr)).strip()
-        return None, (f"FROZEN (cannot check): the freeze check timed out after {FREEZE_TIMEOUT_S} s"
-                      + (f"\n{partial}" if partial else ""))
-    except (OSError, ValueError) as exc:
-        return None, f"FROZEN (cannot check): the freeze check did not run ({exc!r})"
-    report = (out.stdout + out.stderr).strip() or f"the freeze check exited {out.returncode}"
-    return out.returncode, report
-
-
-DEPLOY_FREEZE = ("DEPLOY FREEZE: the project's freeze check (deploy.freeze_check) says deploys are "
-                 "blocked now, or it could not run, so no deploy goes ahead.")
-MERGE_WINDOW = ("MERGE GUARD: a merge deploys to test, and the project's freeze check "
-                "(deploy.freeze_check) says deploys are blocked now.")
-MERGE_CANNOT_CHECK = ("MERGE GUARD: a merge deploys to test and the project's freeze check "
-                      "(deploy.freeze_check) could not run, so it needs the user's approval.")
-
-
-def _merge_freeze(status: tuple[Optional[int], str]) -> tuple[Optional[str], list[str]]:
-    """(deny reason, ask reasons) for a merge whose checks passed."""
-    code, report = status
-    if code == 1:
-        return f"{MERGE_WINDOW}\n{report}", []
-    if code != 0:  # another exit code, did not run, timed out
-        return None, [f"{MERGE_CANNOT_CHECK}\n{report}"]
-    return None, []
-
-
 # --- the decision ---------------------------------------------------------------------------
 
 MERGE_GUARD = ("MERGE GUARD: a main branch takes no direct pushes, and a merge needs every check on "
                "the PR's head commit green, including the required check. This call ")
-OBSERVE = ("OBSERVE PHASE: active development has ended for this project (access.phase = "
-           "\"observe\"), so nothing deploys, merges or changes a platform from this session. "
-           "Reading logs, status and the database stays open. New work re-opens development: "
-           "the user changes the phase in .claude/orchestration/project.toml. This call ")
 
 
 def _answer(decision: str, reason: str) -> dict:
@@ -1219,36 +1159,17 @@ def _decide(event: dict, loaded: athena_profile.Loaded) -> Optional[dict]:
         return _answer("deny", (
             "SECRETS: this call " + "; ".join(dict.fromkeys(secrets)) + ". Secrets reach "
             "commands through the secrets manager at runtime, never through the session."))
-    platform = [a for a in asks if isinstance(a, Platform)]
     unsure = [a for a in asks if not isinstance(a, Platform)]  # the gate could not read the command
 
-    if data["access"]["phase"] == "observe":
-        blocked = deploys + platform + (["merges a PR"] if any(isinstance(g, Merge) for g in guards) else [])
-        if blocked:
-            return _answer("deny", OBSERVE + "; ".join(dict.fromkeys(blocked)) + ".")
-
-    # Development: deploys and platform commands run without a prompt (the destroy gate
-    # stops the destructive ones); the freeze check and the merge guard still apply.
-    root = loaded.root
-    check = data["deploy"]["freeze_check"]
-    status: Optional[tuple[Optional[int], str]] = None  # the freeze check runs at most once
-    if deploys:
-        status = freeze_status(root, check)
-        if status[0] != 0:
-            return _answer("deny", f"{DEPLOY_FREEZE}\n{status[1]}")
-    denials = merge_guard(guards, event.get("cwd") or root)
+    # Deploys and platform commands run without a prompt: the agent's credentials reach
+    # development only, and the destroy gate stops the few destructive actions that reach
+    # beyond it. The merge guard still applies.
+    denials = merge_guard(guards, event.get("cwd") or loaded.root)
     if denials:
         return _answer("deny", MERGE_GUARD + "; ".join(dict.fromkeys(denials)))
-    lines: list[str] = []
-    if any(isinstance(g, Merge) for g in guards):  # every merge in it passed its checks
-        window, lines = _merge_freeze(status or freeze_status(root, check))
-        if window:
-            return _answer("deny", window)
-    if unsure:
-        lines.append(f"OPS GATE - this call {'; '.join(unsure)}.")
-    if not lines:
+    if not unsure:
         return None  # no opinion; normal permission flow applies
-    return _answer("ask", "\n".join(lines) + f" Claude says: {what}")
+    return _answer("ask", f"OPS GATE - this call {'; '.join(unsure)}. Claude says: {what}")
 
 
 BYPASS = ("This session is in bypass-permissions mode, where a question cannot reach the user, "

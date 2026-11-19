@@ -160,10 +160,9 @@ class Gates(unittest.TestCase):
         for action in ("claim", "status", "release"):
             command = f'python "{script}" {action}'
             event = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": os.getcwd()}
-            for phase in ("development", "observe"):
-                with self.subTest(action=action, phase=phase):
-                    self.assertIsNone(destroy_gate.decide(event))
-                    self.assertIsNone(ops_gate._decide(event, loaded(access={"phase": phase})))
+            with self.subTest(action=action):
+                self.assertIsNone(destroy_gate.decide(event))
+                self.assertIsNone(ops_gate._decide(event, loaded()))
 
 
 if __name__ == "__main__":

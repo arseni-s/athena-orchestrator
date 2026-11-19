@@ -36,14 +36,13 @@ When it merges, its rows are closed and new ones are added, in the same commit. 
 
 ## Access inventory
 
-One row per platform the agent works on, the secrets manager included: the agent's own
-identity there is a row like any other. The agent has no access that is not listed here.
-No row is an account-wide token, and each token has an expiry date where the platform
-offers one. Every grant and every revocation is a decision log entry. The close-out
-package (`/athena-orchestrator:close-out`) revokes or rotates each row and records its
-final status.
+One row per credential the agent holds, the secrets manager and the git host included.
+The agent has no access that is not listed here. No row is an account-wide token, no row
+that writes reaches production, and each token has an expiry date where the platform
+offers one. Every grant and every revocation is a decision log entry. When an engagement
+ends, the user revokes each row as its last column says.
 
-| Platform | Used for | Credential | Scope | Injected by | At close-out | Status |
+| Platform | Used for | Credential | Reaches (environments) | Injected by | Revoked by | Status |
 |---|---|---|---|---|---|---|
 
 ## Safeguards
@@ -59,3 +58,5 @@ needs the user's word.
 | Dependencies installed late and without scripts | <the package manager; where its release-age (7 days) and install-script settings are set; CI installs from the lockfile> | <the command that prints the active settings, and its output> | todo |
 | Committed secrets are caught | <push protection on the git host; the scan step in CI> | <a CI run in which the scan ran> | todo |
 | The agent's own identity in the secrets manager | <its name; read-only; no production values; the access token's lifetime> | <its row in the access inventory> | todo |
+| Development rebuilds from scratch with one command | <the command; the migrations, the seed (invented data) and the setup it runs; what it recreates outside the database> | <its run against an empty environment, with the output, and the date> | todo |
+| Production is out of the agent's reach | <production's auto-deploy off, deployed by the user by hand; branch protection on {{main}}; no CLI login of the platform on the agent's machine> | <each agent credential refused on production, and a direct push to {{main}} refused, with the date> | todo |

@@ -13,12 +13,13 @@ each package it:
 5. opens the PR and shows you a summary: what changed, how it was checked, the decisions
    it flagged, its questions. **It merges only when you say "approved".**
 
-Hooks guard the whole run: destructive commands are denied, platform writes follow the
-project's access phase, merges wait for CI and your approval, and code changes must come
-with doc changes.
+The agent has full control of your development environments and none of production:
+it holds no production credential, and you deploy production by hand. Hooks guard the
+whole run: destruction that could reach beyond development is denied, merges wait for CI
+and your approval, and code changes must come with doc changes.
 
 > **Status: early.** Adopting a project and running `/athena` have been trialled end to
-> end. The PR → CI → merge path, fix rounds and `close-out` have not yet run on a real
+> end. The PR → CI → merge path and fix rounds have not yet run on a real
 > project. Try it on something low-stakes first.
 
 ## Install

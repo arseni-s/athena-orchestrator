@@ -1,24 +1,26 @@
-"""PreToolUse hook: destructive operations are a hard no (athena-orchestrator, docs/MODEL.md 12).
+"""PreToolUse hook: destruction that reaches beyond development is a hard no
+(athena-orchestrator, docs/MODEL.md 12.2, layer 5).
 
-Runs in every phase and needs no profile. Python 3 standard library only: no subprocess, no
-network.
+Needs no profile. Python 3 standard library only: no subprocess, no network.
 
-    deny   Railway deletes (project, service, volume, environment, variable, domain, ...),
-           restores and transfers, by CLI, GraphQL or HTTP DELETE; GitHub repository,
-           release, secret and variable deletes; Infisical secret and folder deletes (a
-           sync carries the delete to the platforms); destructive SQL against a remote database
-           (DROP, TRUNCATE, DELETE or UPDATE without WHERE, ALTER TABLE ... DROP, dropdb,
-           pg_restore --clean); a force push or delete of a main branch; a force push that
-           does not name its branch; a destructive MCP tool on a platform or database
-           server; a file write that holds a Railway delete mutation; a script written or
-           run that holds any of these (`sh x`, `bash x`, `source x`, `./x`, `pwsh -File
-           x`; written: shell and PowerShell scripts, batch files, YAML, Makefile, justfile,
-           Procfile, package.json, and any file starting with `#!`). Denied even with
-           approval: the user runs it in their own terminal.
-    ask    Edits of the project profile (`.claude/orchestration/project.toml`, which holds
-           `access.phase`) or of `.claude/settings*.json`, so a session cannot quietly
-           switch a gate off or re-open development. In bypass-permissions mode an ask
-           cannot reach the user, so it is denied instead.
+The agent's credentials reach development only, so destroying things there is allowed: SQL
+of any kind, and deleting Railway services, volumes, variables, domains and deployments.
+This gate denies what can reach production or what every environment shares:
+
+    deny   Deleting or transferring a Railway project, or deleting an environment (or a
+           workspace or team), by CLI, GraphQL or HTTP DELETE; GitHub repository delete,
+           archive, rename, transfer or visibility change, and release, secret and variable
+           deletes; Infisical secret and folder deletes (a sync carries the delete to every
+           environment); a force push or delete of a main branch; a force push that does not
+           name its branch; the same actions through an MCP tool; a file write that holds a
+           Railway project or environment delete mutation; a script written or run that
+           holds any of these (`sh x`, `bash x`, `source x`, `./x`, `pwsh -File x`; written:
+           shell and PowerShell scripts, batch files, YAML, Makefile, justfile, Procfile,
+           package.json, and any file starting with `#!`). Denied even with approval: the
+           user runs it in their own terminal.
+    ask    Edits of the project profile (`.claude/orchestration/project.toml`) or of
+           `.claude/settings*.json`, so a session cannot quietly switch a gate off. In
+           bypass-permissions mode an ask cannot reach the user, so it is denied instead.
 
 It is a text scan, not a shell parser, and independent of the other gates on purpose. The
 text is normalised (lower case; `"`, `'`, backtick and `^` deleted; `,` read as a space),
@@ -41,7 +43,7 @@ EDIT_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 
 DENY_TAIL = ("Destructive operations never run from Claude, even with approval: the user runs "
              "this in their own terminal.")
-ASK_TAIL = "This can switch off a gate or change the access phase: check it by hand."
+ASK_TAIL = "This can switch off a gate: check it by hand."
 ERROR_TAIL = "The gate fails closed: the user runs this in their own terminal."
 BYPASS_TAIL = ("This session is in bypass-permissions mode, where a question cannot reach the "
                "user, so it is denied. Leave bypass mode to approve it, or the user does it by hand.")
@@ -113,11 +115,6 @@ BODY_FILES = [
     re.compile(r"(?<![\w-])--input(?:\s*=\s*|\s+)" + PATH, re.IGNORECASE),
     re.compile(r"(?<![\w-])-infile(?:\s*:\s*|\s+)" + PATH, re.IGNORECASE),
 ]
-SQL_FILES = [
-    re.compile(r"(?<![\w-])-f\s+" + PATH),
-    re.compile(r"(?<![\w-])--file(?:\s*=\s*|\s+)" + PATH, re.IGNORECASE),
-    re.compile(r"(?<![<\w])<(?![<=(])\s*" + PATH),
-]
 
 
 def files(text: str, patterns: list[re.Pattern[str]]) -> list[str]:
@@ -133,42 +130,22 @@ GIT = program(r"git")
 GH = program(r"gh")
 INFISICAL = program(r"infisical")
 
-RAILWAY_DELETE = re.compile(word("delete", "remove", "rm", "down", "destroy", "purge", "restore",
-                                 "transfer", "detach", "unset", "--remove", "--unset"))
+# Railway: what the agent's development-scoped token reaches is allowed; a project,
+# environment, workspace or team holds production too, so deleting one is denied.
+RAILWAY_DELETE_WORDS = {"delete", "remove", "rm", "destroy", "purge"}
+RAILWAY_SCOPES = {"project", "projects", "environment", "environments", "env", "workspace", "team"}
 API_WORD = re.compile(word("api"))
-GRAPHQL_DESTROY = re.compile(r"\w*(?:delete|remove|destroy|purge|restore|transfer)\w*")
+# GraphQL names such as projectDelete, environmentDelete, projectTransfer.
+SHARED_DESTROY = re.compile(r"(?:project|environment|workspace|team)\w*(?:delete|remove|destroy|purge|transfer)"
+                            r"|\w*transfer\w*", re.IGNORECASE)
 HTTP_DELETE = re.compile(
     r"(?:(?<![\w-])-x\s*|(?<![\w-])--request(?:\s*=\s*|\s+)|(?<![\w-])--method(?:\s*=\s*|\s+)"
     r"|(?<![\w-])-me\w*(?:\s*:\s*|\s+))delete(?![\w-])")
 HTTP_DELETE_HOSTS = re.compile(r"backboard\.railway|api\.github\.com")
 
-# A database is remote unless the command shows it is local. Secrets are injected at runtime
-# (`infisical run -- psql ...`), so a command often names no host at all.
-LOCAL = r"(?:localhost|127\.0\.0\.1|\[?::1\]?|host\.docker\.internal)"
-REMOTE_MARKS = re.compile(
-    r"rlwy\.net|railway\.internal|railway\.app"
-    r"|\w*(?:database|postgres|pg|db|migrate)\w*_?url"  # $DATABASE_URL, $env:APP_DB_URL
-    r"|postgres(?:ql)?://(?:[^\s/@]*@)?(?![^\s/@]*@)(?!" + LOCAL + r"(?![\w.-]))[\w.-]+"
-    r"|(?<![\w-])(?:-h|--host)(?:\s*=\s*|\s+)(?!" + LOCAL + r"(?![\w.-]))[\w.-]+"
-    r"|pghost\s*=\s*(?!" + LOCAL + r"(?![\w.-]))[\w.-]+")
-RAILWAY_EXEC = re.compile(word("connect", "run", "ssh", "shell"))
-SQL_OBJECTS = ("database|schema|table|view|materialized\\s+view|sequence|type|function|index|role"
-               "|user|owned|extension|trigger|policy|publication|subscription")
-SQL_DESTROY = [
-    (re.compile(r"\bdrop\s+(?:" + SQL_OBJECTS + r")\b"), "DROP"),
-    (re.compile(r"\btruncate\b"), "TRUNCATE"),
-    (re.compile(r"\balter\s+table\b[^;]*?\bdrop\b"), "ALTER TABLE ... DROP"),
-    (re.compile(r"\bdropdb\b"), "dropdb"),
-    (re.compile(r"\bdropuser\b"), "dropuser"),
-    (re.compile(r"\bpg_restore\b[^;&|\n]*?" + word("--clean", "-c")), "pg_restore --clean"),
-]
-# A bulk change: no WHERE before the statement ends.
-SQL_BULK = [
-    (re.compile(r"\bdelete\s+from\b"), "DELETE without WHERE"),
-    (re.compile(r"\bupdate\s+[^;]*?\bset\b"), "UPDATE without WHERE"),
-]
-
-MCP_SERVERS = ("railway", "github", "postgres", "neon", "supabase", "infisical")
+# MCP: GitHub and Infisical are shared by every environment, so any destructive tool is
+# denied; on Railway only the tools that act on a project, environment, workspace or team.
+MCP_SHARED = ("github", "infisical")
 MCP_DESTROY = ("delete", "remove", "destroy", "drop", "truncate", "purge", "restore", "transfer")
 
 GIT_PUSH = re.compile(word("push"))
@@ -183,11 +160,8 @@ GH_STORE = re.compile(word("release", "secret", "variable"))
 GH_STORE_DELETE = re.compile(r"(?<![\w-])(?:delete[\w-]*|remove)(?![\w-])")
 GH_GRAPHQL = re.compile(word("graphql"))
 
-WRITE_NAMES = re.compile(
-    r"servicedelete|volumedelete|projectdelete|environmentdelete|customdomaindelete"
-    r"|tcpproxydelete|variabledelete|deploymentremove|projecttransfer|volumeinstancebackuprestore",
-    re.IGNORECASE)
-WRITE_NAME_NEAR_API = re.compile(r"[a-z]\w*(?:Delete|Restore|Transfer)")
+WRITE_NAMES = re.compile(r"(?:project|environment|workspace|team)(?:delete|transfer)"
+                         r"|project\w*transfer", re.IGNORECASE)
 MAX_SCRIPT_DEPTH = 3
 WRAPPERS = {"sudo", "exec", "nohup", "time", "env", "command", "builtin", "call"}
 SH_FAMILY = {"sh", "bash", "zsh", "dash", "ksh"}
@@ -274,8 +248,9 @@ def shell_denies(command: str, cwd: Optional[str], depth: int = 0) -> Optional[t
         return read_file(path, cwd) if cwd is not None else ""
 
     for seg in segs:
-        if after(seg, RAILWAY, RAILWAY_DELETE):
-            return "railway-delete", "deletes, removes or restores something on Railway"
+        if railway_shared_delete(seg):
+            return "railway-delete", ("deletes or transfers a Railway project, or deletes an environment, "
+                                      "workspace or team (they hold production too)")
 
     # HTTP DELETE first: `-X DELETE` to backboard is not a GraphQL name (railway-api).
     if HTTP_DELETE.search(norm) and HTTP_DELETE_HOSTS.search(norm):
@@ -283,16 +258,9 @@ def shell_denies(command: str, cwd: Optional[str], depth: int = 0) -> Optional[t
 
     if "backboard.railway" in norm or any(after(s, RAILWAY, API_WORD) for s in segs):
         bodies = [norm] + [read(f) for f in files(kept, BODY_FILES)]
-        if any(GRAPHQL_DESTROY.search(b) for b in bodies):
-            return "railway-api", "calls a destructive Railway GraphQL mutation"
-
-    remote = REMOTE_MARKS.search(norm) or any(
-        after(s, RAILWAY, RAILWAY_EXEC) or INFISICAL.search(s) for s in segs)
-    if remote:
-        for text in [norm] + [read(f) for f in files(kept, SQL_FILES)]:
-            what = destructive_sql(text)
-            if what:
-                return "sql-remote", f"runs destructive SQL ({what}) against a remote database"
+        if any(SHARED_DESTROY.search(b) for b in bodies):
+            return "railway-api", ("calls a Railway GraphQL mutation that deletes or transfers a project, "
+                                   "environment, workspace or team")
 
     for seg in segs:
         found = git_push(seg)
@@ -321,15 +289,21 @@ def shell_denies(command: str, cwd: Optional[str], depth: int = 0) -> Optional[t
     return None
 
 
-def destructive_sql(text: str) -> Optional[str]:
-    for pattern, what in SQL_DESTROY:
-        if pattern.search(text):
-            return what
-    for pattern, what in SQL_BULK:
-        for m in pattern.finditer(text):
-            if not re.search(r"\bwhere\b", text[m.end():].split(";", 1)[0]):
-                return what
-    return None
+def railway_shared_delete(seg: str) -> bool:
+    """`railway delete` (the project), `railway environment delete x`, `railway project
+    transfer`: yes. `railway service delete web -e dev`, `railway down`: no, the agent's
+    token reaches development only. Scopes count as words, not flag values, so
+    `--environment dev` on a service delete is not an environment delete."""
+    m = RAILWAY.search(seg)
+    if not m:
+        return False
+    rest = re.sub(r"^/cli(?:@\S*)?", "", seg[m.end():])  # `npx @railway/cli@latest delete`
+    words = [t for t in rest.split() if not t.startswith("-")]
+    if "transfer" in words:
+        return True
+    if not any(w in RAILWAY_DELETE_WORDS for w in words):
+        return False
+    return words[0] in RAILWAY_DELETE_WORDS or any(w in RAILWAY_SCOPES for w in words)
 
 
 def git_push(seg: str) -> Optional[tuple[str, str]]:
@@ -422,8 +396,8 @@ def edit_verdict(tool: str, ti: dict) -> Verdict:
         for text in texts:
             if WRITE_NAMES.search(text) or (
                     re.search(r"backboard\.railway", text, re.IGNORECASE)
-                    and WRITE_NAME_NEAR_API.search(text)):
-                return deny("write-mutation", "writes a Railway GraphQL delete mutation into a file")
+                    and SHARED_DESTROY.search(text)):
+                return deny("write-mutation", "writes a Railway project or environment delete mutation into a file")
         if SCRIPT_FILE.search(p) or any(t.startswith("#!") for t in texts):
             for text in texts:
                 found = shell_denies(text, None)
@@ -436,13 +410,13 @@ def edit_verdict(tool: str, ti: dict) -> Verdict:
 
 def mcp_verdict(name: str, ti: object) -> Verdict:
     server, _, tool = name[len("mcp__"):].lower().partition("__")
-    if not any(s in server for s in MCP_SERVERS):
-        return None
-    if any(w in tool for w in MCP_DESTROY):
-        return deny("mcp-delete", f"is a destructive {server} MCP tool")
-    what = destructive_sql(strip("\n".join(strings(ti))).lower())
-    if what:
-        return deny("mcp-delete", f"sends destructive SQL ({what}) through the {server} MCP server")
+    destroys = any(w in tool for w in MCP_DESTROY)
+    if destroys and any(s in server for s in MCP_SHARED):
+        return deny("mcp-delete", f"is a destructive {server} MCP tool (shared by every environment)")
+    if "railway" in server and (SHARED_DESTROY.search(tool) or (
+            destroys and re.search(r"project|environment|workspace|team", tool))):
+        return deny("mcp-delete", f"is a {server} MCP tool that deletes or transfers a project, "
+                                  "environment, workspace or team")
     return None
 
 

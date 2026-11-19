@@ -59,7 +59,7 @@ that writes. Never read `.env` files.
 | Architecture docs | `docs/ARCHITECTURE.md`, `docs/architecture/`, published API contracts | `repo.architecture` |
 | CI | `.github/workflows/*.yml` and the job that runs the tests | `{{required_check}}`; whether `ci.yml` is written |
 | PR template | `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE/` | whether the template is written |
-| Hosting and deploys | `Dockerfile`, `railway.*`, `fly.toml`, `vercel.json`, `Procfile`, deploy scripts | `{{deploy_test}}`, `{{deploy_prod}}`, `paths.ops` |
+| Hosting and deploys | `Dockerfile`, `railway.*`, `fly.toml`, `vercel.json`, `Procfile`, deploy scripts | `{{deploy_dev}}`, `{{deploy_prod}}`, `paths.ops` |
 | Database and migrations | `migrations/`, `db/`, `alembic/`, `prisma/` | `paths.full_panel`, `paths.ops`, the event-table package |
 | User interface | `templates/`, `static/`, `src/components/`, `app/`, `pages/`, `frontend/` | `paths.ux`, and whether `ux.md` is needed |
 | Auth, config, secrets handling | `auth/`, `config.*`, `.env.example`, lockfiles | `paths.security` |
@@ -82,10 +82,14 @@ mapping.
    - the one-line summary, and what a **user-visible bug** looks like here
      (`rubric.user_visible`);
    - the **realistic conditions** a bug shows up under (`rubric.conditions`);
-   - what a merge deploys to, and what counts as **production**;
+   - which environments are **development** (what a merge deploys to, and everything
+     the agent may control), what counts as **production**, and how the user deploys
+     production by hand (auto-deploy off, a chosen commit from the platform's dashboard);
+   - the command that **rebuilds development from scratch**, if there is one, and what
+     in development was set up by hand and is not yet in seed or setup code;
    - the **hard rules**: what must never happen;
    - which code is **critical** (where a bug is visible or loses data:
-     `paths.full_panel`), and whether anything needs a **freeze check**;
+     `paths.full_panel`);
    - the **safeguards** the survey could not see: whether the database has a backup
      outside the hosting platform, and whether a restore was ever tested.
 2. **Present the mapping**: one table, one row per template in the templates README, with
@@ -99,7 +103,7 @@ mapping.
    - `skip`: not needed here (say why: no user interface, no database).
 
    Below it: the profile you will write, in full, the seed packages (step 4.6), and the
-   plan's "Safeguards" table as the survey found it: each of the four rows `done` with
+   plan's "Safeguards" table as the survey found it: each of the six rows `done` with
    what proves it, `not needed` with the reason, or `todo` with what is missing. Mark a
    row `done` only on evidence you read, never on a guess.
 3. **Wait for one approval** of the mapping. Apply the changes the user asks for. Do not
@@ -107,8 +111,9 @@ mapping.
    adoption**: everything that sets the rules (the profile, the settings, the ADR) is in
    front of them now, so there is no second review of the commit afterwards. Say so
    under the mapping, together with: "Approving also accepts the orchestration ADR, which
-   lets the orchestrator build, review and deploy on its own, and merge each package once
-   you approve its summary. Say if you want it left Proposed."
+   gives the orchestrator full control of the development environments, and lets it
+   merge each package once you approve its summary. Production stays yours: it holds no
+   credential for it, and you deploy it by hand. Say if you want it left Proposed."
 
 ## 4. Write
 
@@ -148,19 +153,35 @@ branch. Writes go through the file tools, never a shell heredoc.
 6. **Seed packages.** Replace the plan's example row with the rest of the bootstrap
    (the orchestration model, section 13), one row and one short spec each, from the spec
    template, with IDs that fit the plan's scheme:
-   - **access** (owner `human`): the access inventory, the secrets manager with
-     variables synced to every platform, project-scoped tokens with expiry dates and no
-     account-wide token, the database write role that owns nothing and the read-only
-     role. In the secrets manager the agent gets **its own machine identity**: read-only
+   - **access** (owner `human`): the wall around production (the orchestration model,
+     section 12). The access inventory; the secrets manager with variables synced to
+     every platform; tokens scoped to this project and to the **development**
+     environments only, with expiry dates and no account-wide token; production's
+     auto-deploy switched off, so it deploys only when the user starts it; branch
+     protection on the main branch (pull request and the required check, no force push,
+     no deletion, nobody exempt). The agent's database role owns the development
+     database; in production it gets no role, or a read-only one on named schemas. In
+     the secrets manager the agent gets **its own machine identity**: read-only
      (Infisical: the Viewer role), with no production values (where the plan cannot
      limit an identity to an environment, production secrets go in a second
      secrets-manager project the identity is not a member of), and an access-token
      lifetime of hours. Its client secret stays in the user's password manager; a
-     launcher outside the repo swaps it for an access token before the agent starts.
-     The user keeps no admin session of the secrets manager's CLI on this machine. Real
-     values leave every `.env` file. Its Verify steps prove each grant works and is
-     scoped: the identity reads a development secret, and a write and a production read
-     with it are refused;
+     launcher outside the repo swaps it for an access token before the agent starts. The
+     agent's git host token is fine-grained, for this repository only, with no
+     administration, environments or deployments permission. The user keeps no CLI login
+     of the hosting platform and no admin session of the secrets manager on this
+     machine. Real values leave every `.env` file. Its Verify steps prove the wall: each
+     agent credential pointed at production is refused (a call that changes nothing even
+     if allowed, never a write and never a listing that prints values), a direct push to
+     the main branch is refused, and the identity reads a development secret while a
+     write with it is refused;
+   - **dev rebuild** (owner `orchestrator`, unless the safeguard is `done`): one command
+     that takes an empty development environment to a working one: migrations, a seed
+     script with invented data (never a copy of production), and whatever else
+     development holds outside the database (files in storage, test users in a sign-in
+     service, webhooks). Everything someone set up in development by hand goes into it.
+     Its Verify steps run the command against an empty database and show the app and the
+     end-to-end tests working on the result;
    - **backup** (owner `human`, only when the project has a database and the backup
      safeguard is not `done`): a scheduled dump of each database to storage at another
      provider, written with a credential that can add files and cannot delete them, and
@@ -240,7 +261,9 @@ One screen:
   4. make CI's check name match `merge.required_check`, and require it in the branch
      protection of the main branch; switch on the git host's secret scanning and push
      protection for the repository;
-  5. start a new Claude Code session in the repo, so the plugin's hooks load, and run
+  5. switch off auto-deploy for the production environment, if the access package has
+     not: from now on production deploys only when they start it;
+  6. start a new Claude Code session in the repo, so the plugin's hooks load, and run
      `/athena`;
 - **what no plugin can do for them** (the orchestration model, section 12.6), in four
   lines: a passkey or hardware key on email, the git host, the hosting platform, the
@@ -249,5 +272,6 @@ One screen:
   repository from an unknown source opened in a cloud development environment, never
   trusted straight away.
 
-The orchestration model ends with a close-out: when active development ends,
-`/athena-orchestrator:close-out` revokes write access and moves the project to read-only.
+There is no end phase to switch to. When an engagement ends, the user revokes the
+credentials in the access inventory (each row says how); the agent never held a
+production credential, so production needs no rotation unless a value leaked.

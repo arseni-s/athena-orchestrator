@@ -23,15 +23,13 @@ class Check(unittest.TestCase):
         self.assertEqual(data["plan"]["plan"], "docs/IMPLEMENTATION_PLAN.md")
         self.assertEqual(data["repo"]["setup"], [])
         self.assertEqual(data["paths"]["ux"], [])
-        self.assertEqual(data["deploy"]["freeze_check"], "fake-freeze-check")
-        self.assertEqual(athena_profile.check(raw(deploy={"freeze_check": DROP}))[0]["deploy"]["freeze_check"], None)
+        self.assertEqual(data["deploy"], {"dev": "the development environment", "prod": "the production environment"})
 
     def test_required(self) -> None:
         cases = {
             "schema": raw(schema=None),
             "project": raw(project={"summary": ""}),
-            "access": raw(access=None),
-            "access.phase": raw(access={"phase": DROP}),
+            "deploy.dev": raw(deploy={"dev": DROP}),
             "rubric": raw(rubric=None),
             "deploy": raw(deploy={"prod": ""}),
             "merge": raw(merge={"required_check": ""}),
@@ -49,7 +47,6 @@ class Check(unittest.TestCase):
     def test_types_and_values(self) -> None:
         cases = {
             "schema": raw(schema=2),
-            "phase": raw(access={"phase": "production"}),
             "conditions": raw(rubric={"conditions": "restart"}),
             "panel.full": raw(panel={"full": "K1"}),
             "paths.ops": raw(paths={"ops": "scripts/"}),
@@ -64,7 +61,9 @@ class Check(unittest.TestCase):
         cases = {
             "schedule": raw(schedule={"freeze": "2027-01-01"}),
             "lanes": raw(lanes=[{"id": "A"}]),
-            "acess": raw(acess={"phase": "observe"}),
+            "access": raw(access={"phase": "development"}),
+            "deploy.test": raw(deploy={"test": "the old name for deploy.dev"}),
+            "deploy.freeze_check": raw(deploy={"freeze_check": "scripts/freeze"}),
             "plan.human_lane": raw(plan={"human_lane": "You"}),
             "deploy.freeze_date": raw(deploy={"freeze_date": "2027-01-01"}),
         }
@@ -72,9 +71,10 @@ class Check(unittest.TestCase):
             with self.subTest(setting=name):
                 self.assertIn(f"`{name}` is not a profile setting", problems(data))
 
-    def test_both_phases_are_valid(self) -> None:
-        for phase in ("development", "observe"):
-            self.assertEqual(problems(raw(access={"phase": phase})), [])
+    def test_removed_settings_are_errors(self) -> None:
+        """The access phases and the freeze check were removed on 19 Nov 2026 (MODEL.md 12)."""
+        found = problems(raw(access={"phase": "observe"}))
+        self.assertIn("`access` is not a profile setting", found)
 
 
 class Patterns(unittest.TestCase):
@@ -135,7 +135,7 @@ class Load(unittest.TestCase):
     def test_command_line(self) -> None:
         parent = self.tmp.make()
         good = make_repo(os.path.join(parent, "app"), toml(raw()))
-        cases = [(good, 0, "profile ok: Sample (phase: development"),
+        cases = [(good, 0, "profile ok: Sample (main branch: main"),
                  (make_repo(os.path.join(parent, "none")), 2, "no profile"),
                  (make_repo(os.path.join(parent, "bad"), "schema = 1\n"), 1, "invalid profile")]
         for repo, code, text in cases:

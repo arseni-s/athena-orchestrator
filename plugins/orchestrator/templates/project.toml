@@ -6,11 +6,6 @@ schema = 1
 name = "{{project_name}}"
 summary = "{{project_summary}}"
 
-[access]
-# "development": Claude deploys and writes to the platforms; destructive commands are denied.
-# "observe": after close-out, read-only. Only the user changes this line.
-phase = "development"
-
 [repo]
 main = "{{main}}"
 # Commands run once per session before the gates (starting a local database, for example).
@@ -30,10 +25,10 @@ user_visible = "{{user_visible}}"
 conditions = ["{{condition}}"]
 
 [deploy]
-test = "{{deploy_test}}"
+# Development: what a merge deploys to, and everything the agent's credentials reach.
+dev = "{{deploy_dev}}"
+# Production: what counts as production, and how the user deploys it by hand.
 prod = "{{deploy_prod}}"
-# Optional: a command that exits 1 while nothing may deploy (a release window, an event).
-# freeze_check = "..."
 
 [merge]
 required_check = "{{required_check}}"

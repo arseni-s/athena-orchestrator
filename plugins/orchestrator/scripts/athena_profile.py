@@ -17,14 +17,12 @@ from typing import Any
 
 PROFILE = os.path.join(".claude", "orchestration", "project.toml")
 SCHEMA = 1
-PHASES = ("development", "observe")
 KNOWN = {
     "project": {"name", "summary"},
-    "access": {"phase"},
     "repo": {"main", "setup", "gates", "architecture"},
     "plan": {"plan", "process", "specs", "adrs", "log", "read_at_start"},
     "rubric": {"user_visible", "conditions"},
-    "deploy": {"test", "prod", "freeze_check"},
+    "deploy": {"dev", "prod"},
     "merge": {"required_check"},
     "panel": {"full"},
     "paths": {"full_panel", "design_review", "ops", "security", "ux"},
@@ -123,15 +121,12 @@ def check(raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             c.problems.append(f"`{name}` is not a profile setting")
         elif isinstance(value, dict):
             c.problems += [f"`{name}.{k}` is not a profile setting" for k in value if k not in KNOWN[name]]
-    project, access, repo = c.table("project"), c.table("access"), c.table("repo")
+    project, repo = c.table("project"), c.table("repo")
     plan, rubric, deploy = c.table("plan", False), c.table("rubric"), c.table("deploy")
     merge, panel, paths, docs = c.table("merge"), c.table("panel", False), c.table("paths", False), c.table("docs")
     data: dict[str, Any] = {"schema": SCHEMA}
     data["project"] = {"name": c.get(project, "name", str, "project", nonempty=True),
                        "summary": c.get(project, "summary", str, "project", nonempty=True)}
-    data["access"] = {"phase": c.get(access, "phase", str, "access")}
-    if data["access"]["phase"] not in (None, *PHASES):
-        c.problems.append(f"`access.phase` must be one of: {', '.join(PHASES)}")
     data["repo"] = {
         "main": c.get(repo, "main", str, "repo", nonempty=True),
         "setup": c.get(repo, "setup", list, "repo", []),
@@ -148,9 +143,8 @@ def check(raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     }
     data["rubric"] = {"user_visible": c.get(rubric, "user_visible", str, "rubric", nonempty=True),
                       "conditions": c.get(rubric, "conditions", list, "rubric", nonempty=True)}
-    data["deploy"] = {"test": c.get(deploy, "test", str, "deploy", nonempty=True),
-                      "prod": c.get(deploy, "prod", str, "deploy", nonempty=True),
-                      "freeze_check": c.get(deploy, "freeze_check", str, "deploy", None)}
+    data["deploy"] = {"dev": c.get(deploy, "dev", str, "deploy", nonempty=True),
+                      "prod": c.get(deploy, "prod", str, "deploy", nonempty=True)}
     data["merge"] = {"required_check": c.get(merge, "required_check", str, "merge", nonempty=True)}
     data["panel"] = {"full": c.get(panel, "full", list, "panel", [])}
     data["paths"] = {k: c.get(paths, k, list, "paths", [])
@@ -212,7 +206,7 @@ def main(argv: list[str]) -> int:
             print(f"  - {p}")
         return 1
     d = loaded.data
-    print(f"profile ok: {d['project']['name']} (phase: {d['access']['phase']}, main branch: {d['repo']['main']})")
+    print(f"profile ok: {d['project']['name']} (main branch: {d['repo']['main']})")
     return 0
 
 

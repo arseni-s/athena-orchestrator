@@ -34,7 +34,7 @@ frees itself once its Claude process has ended.
    was checked, the decisions it flagged for you, and its questions. Ask anything, or ask
    for a change (it goes back to the implementer). Reply **"approved"** to merge.
 10. **Merge**: one squash commit per package, when every merge condition holds; the
-    orchestrator checks that it landed. A merge deploys to {{deploy_test}}.
+    orchestrator checks that it landed. A merge deploys to development ({{deploy_dev}}); production waits for you to deploy it.
 
 The orchestrator never edits code. It writes only plan status, the decision log and PR
 text.
@@ -74,7 +74,6 @@ The orchestrator merges only when all of these hold:
 - the branch is rebased on `{{main}}`, with the gates re-run after the rebase;
 - the decision log is written and linked, and the follow-up register is updated;
 - the PR body follows `.github/pull_request_template.md`;
-- the project's freeze check, if it has one, does not block deploys;
 - you approved the package after reading its summary.
 
 The merge guard enforces the checks, refuses auto-merge, and refuses direct pushes to
@@ -82,33 +81,42 @@ The merge guard enforces the checks, refuses auto-merge, and refuses direct push
 
 ## Access
 
-While `access.phase` is `development`, the orchestrator deploys and changes the platforms
-a spec calls for, production ({{deploy_prod}}) included, without asking, using only the
-access in the plan's "Access inventory". A decision that writes to production is flagged
-for review. When development ends, the close-out package revokes that access and sets the
-phase to `observe`: from then on the agent only reads.
+The orchestrator has full control of development ({{deploy_dev}}): it deploys, changes
+variables, resets and reseeds databases, and creates and deletes services there without
+asking, using only the access in the plan's "Access inventory". Development rebuilds from
+scratch with one command, and anything set up there by hand is turned into seed or setup
+code, so nothing in it is lost for good.
+
+Production ({{deploy_prod}}) is yours. The orchestrator holds no credential for it, and
+production deploys only when you start it, by hand. A decision that changes what
+production will do once you deploy it (a migration, a production setting) is flagged for
+review, and each session report lists what is ready for production.
 
 ## What needs the user
 
 Every merge waits for your "approved" (step 9 above). Besides that, the orchestrator asks
 first, every time, for:
 - anything a gate denied;
-- a deploy or merge while the freeze check blocks deploys;
+- anything in production;
 - accepting or changing an ADR (it may draft one as `Proposed`);
 - changing a hard rule in `CLAUDE.md`, or the profile;
 - weakening a gate: hooks, CI, branch protection, tests, `[no-docs]` on a change with
   behaviour;
 - weakening a safeguard from the plan's "Safeguards" table: the package manager's
-  release-age or install-script setting, the secret scan, the backup job;
+  release-age or install-script setting, the secret scan, the backup job, the
+  development rebuild;
 - cutting a package;
 - an open question with no safe default;
 - deleting branches or worktrees it did not create;
 - granting or widening platform access, or anything that would show a secret's value.
 
-**Destructive operations are never done by the orchestrator or a subagent, even with your
-approval**: deleting anything on a hosting platform, destructive SQL on a non-local
-database, a force push or delete of `{{main}}`. The orchestrator says what is needed, and
-you run it in your own terminal. The destroy gate denies them.
+**Destructive operations that reach beyond development are never done by the
+orchestrator or a subagent, even with your approval**: deleting or transferring the
+hosting platform's project, deleting an environment, deleting the repository, a release or
+a CI secret, a force push or delete of `{{main}}`, deleting a secret in the secrets
+manager. The orchestrator says what is needed, and you run it in your own terminal. The
+destroy gate denies them. Destruction inside development (dropping a table, resetting the
+database, deleting a service) is allowed: the rebuild brings it back.
 
 ## Revising a decision
 

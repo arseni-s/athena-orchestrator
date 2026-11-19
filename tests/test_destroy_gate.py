@@ -1,4 +1,4 @@
-"""Destroy gate: destructive operations are denied, whatever the phase.
+"""Destroy gate: destruction that reaches beyond development is denied.
 
 The cases live in destroy_gate_cases.json (tool, input, expect, rule, optional fixture
 files). Each is passed to the imported gate as an event; nothing is executed.
@@ -49,7 +49,7 @@ class Cases(unittest.TestCase):
 
     def test_every_rule_has_cases(self) -> None:
         rules = {c["rule"] for c in CASES if c.get("rule")}
-        self.assertEqual(rules, {"railway-delete", "railway-api", "http-delete", "sql-remote", "git-main",
+        self.assertEqual(rules, {"railway-delete", "railway-api", "http-delete", "git-main",
                                  "git-force-unnamed", "gh-destroy", "infisical-delete", "mcp-delete", "write-mutation",
                                  "write-script", "script-run", "gate-edit", "gate error"})
 
@@ -89,9 +89,9 @@ class FailsClosed(unittest.TestCase):
         tmp = TempDirs()
         try:
             folder = tmp.make()
-            Path(folder, "big.sql").write_text("select 1;\n" * 100_001, encoding="utf-8")
+            Path(folder, "big.sh").write_text("echo hello\n" * 100_001, encoding="utf-8")
             event = {"tool_name": "Bash", "cwd": folder,
-                     "tool_input": {"command": f'psql "$DATABASE_URL" -f {folder.replace(os.sep, "/")}/big.sql'}}
+                     "tool_input": {"command": f'bash {folder.replace(os.sep, "/")}/big.sh'}}
             result = self.main_with(json.dumps(event).encode())
             self.assertEqual(result["permissionDecision"], "deny")
             self.assertIn("over 1 MB", result["permissionDecisionReason"])

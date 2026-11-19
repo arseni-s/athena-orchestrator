@@ -1,7 +1,6 @@
-"""Ops gate: phases, the freeze check, secrets, and commands it cannot read.
+"""Ops gate: deploys, the merge guard's entry points, secrets, and commands it cannot read.
 
-Commands are passed as strings to the imported gate; none is executed. The freeze check is
-a stub here, except in FreezeStatus, which runs tiny Python commands.
+Commands are passed as strings to the imported gate; none is executed.
 """
 from __future__ import annotations
 
@@ -10,14 +9,9 @@ import json
 import sys
 import unittest
 from contextlib import contextmanager, redirect_stdout
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator
 
-from gatelib import DROP, PY, bash, loaded, ops_gate, powershell
-
-CLEAR = (0, "CLEAR: nothing scheduled")
-FROZEN = (1, "FROZEN: release window")
-OBSERVE = {"phase": "observe"}
-FREEZE_CALLS: list[str] = []  # the freeze-check commands the last decide() ran
+from gatelib import bash, loaded, ops_gate, powershell
 
 
 @contextmanager
@@ -32,13 +26,8 @@ def patched(**attrs: Any) -> Iterator[None]:
             setattr(ops_gate, k, v)
 
 
-def decide(event: dict, freeze: tuple = CLEAR, state: str = "ok", **changes: Any) -> tuple[str, str]:
-    FREEZE_CALLS.clear()
-
-    def stub(root: str, command: Optional[str]) -> tuple:
-        FREEZE_CALLS.append(command or "")
-        return freeze if command else (0, ops_gate.NO_CHECK)
-    with patched(freeze_status=stub, GH_CMD=["gh-must-not-be-called"], GIT_CMD=["git-must-not-be-called"]):
+def decide(event: dict, state: str = "ok", **changes: Any) -> tuple[str, str]:
+    with patched(GH_CMD=["gh-must-not-be-called"], GIT_CMD=["git-must-not-be-called"]):
         out = ops_gate._decide(event, loaded(state, **changes)) or {}
     return out.get("permissionDecision", "none"), out.get("permissionDecisionReason", "")
 
@@ -162,40 +151,35 @@ class Bypass(unittest.TestCase):
         self.assertIsNone(ops_gate._strict(None, {"permission_mode": "bypassPermissions"}))
 
 
-class Development(unittest.TestCase):
-    """Deploys and platform commands run without a prompt; the freeze check still applies."""
+class Deploys(unittest.TestCase):
+    """Deploys and platform commands run without a prompt: the agent's credentials reach
+    development only, and the user deploys production by hand (MODEL.md 12). The classifier
+    still finds them, so a project without a profile asks."""
 
     def test_platform_commands_run(self) -> None:
         for command in PLATFORM:
             with self.subTest(command=command):
-                self.assertEqual(decision(bash(command), freeze=FROZEN), "none")
+                self.assertEqual(decision(bash(command)), "none")
 
-    def test_deploys_run_when_clear(self) -> None:
+    def test_deploys_run(self) -> None:
         for command in DEPLOYS:
             if command in TO_MAIN:
                 continue
             with self.subTest(command=command):
-                self.assertEqual(decision(bash(command)), "none")
-                self.assertEqual(len(FREEZE_CALLS), 1, "the freeze check runs once per deploy")
+                self.assertEqual(decision(powershell(command)), "none")
 
-    def test_deploys_denied_while_frozen(self) -> None:
-        for command in DEPLOYS:
+    def test_forms_and_tags_run(self) -> None:
+        for command, shell in FORMS + [(t, bash) for t in TAGS]:
             with self.subTest(command=command):
-                d, reason = decide(powershell(command), freeze=FROZEN)
-                self.assertEqual(d, "deny")
-                self.assertRegex(reason, "^DEPLOY FREEZE")
-                self.assertIn("FROZEN: release window", reason)
-
-    def test_forms_denied_while_frozen_run_when_clear(self) -> None:
-        for command, shell in FORMS:
-            with self.subTest(command=command):
-                self.assertEqual(decision(shell(command), freeze=FROZEN), "deny")
                 self.assertEqual(decision(shell(command)), "none")
 
-    def test_tag_pushes_are_deploys(self) -> None:
-        for command in TAGS:
+    def test_the_classifier_still_finds_them(self) -> None:
+        cases = [(c, powershell) for c in DEPLOYS + PLATFORM if c not in TO_MAIN] + FORMS + [(t, bash) for t in TAGS]
+        for command, shell in cases:
             with self.subTest(command=command):
-                self.assertEqual(decision(bash(command), freeze=FROZEN), "deny")
+                d, reason = decide(shell(command), state="absent")
+                self.assertEqual(d, "ask", "an unadopted project asks before a deploy")
+                self.assertIn("no athena-orchestrator profile", reason)
 
     def test_pushes_to_main_are_denied_by_the_merge_guard(self) -> None:
         for command in TO_MAIN:
@@ -204,68 +188,31 @@ class Development(unittest.TestCase):
                 self.assertEqual(d, "deny")
                 self.assertRegex(reason, "^MERGE GUARD")
 
-    def test_freeze_check_that_cannot_decide_denies(self) -> None:
-        for status in [(None, "FROZEN (cannot check): did not run"), (2, "no answer"), (127, "x")]:
-            with self.subTest(status=status):
-                self.assertEqual(decision(bash("railway up"), freeze=status), "deny")
 
-    def test_no_freeze_check_configured(self) -> None:
-        self.assertEqual(decision(bash("railway up"), freeze=FROZEN, deploy={"freeze_check": DROP}), "none")
-
-    def test_non_deploys_do_not_run_the_check(self) -> None:
-        self.assertEqual(decision(bash("railway restart"), freeze=FROZEN), "none")
-        self.assertEqual(FREEZE_CALLS, [])
-
-
-class Observe(unittest.TestCase):
-    """After close-out: nothing deploys, merges or changes a platform."""
-
-    def test_platform_commands_and_deploys_denied(self) -> None:
-        for command in PLATFORM + DEPLOYS + ["gh pr merge 5 --squash"]:
-            with self.subTest(command=command):
-                d, reason = decide(bash(command), access=OBSERVE)
-                self.assertEqual(d, "deny")
-                self.assertRegex(reason, "^OBSERVE PHASE")
-                self.assertEqual(FREEZE_CALLS, [], "denied before the freeze check or gh is called")
-
-    def test_forms_denied(self) -> None:
-        for command, shell in FORMS:
-            with self.subTest(command=command):
-                self.assertEqual(decision(shell(command), access=OBSERVE), "deny")
-
-    def test_reading_and_local_work_stay_open(self) -> None:
-        for command in HARMLESS + ["railway logs --service web", "git push -u origin wp/x1"]:
-            with self.subTest(command=command):
-                self.assertEqual(decision(bash(command), access=OBSERVE), "none")
-
-
-class BothPhases(unittest.TestCase):
-    PHASES = ({"phase": "development"}, OBSERVE)
-
+class Everyday(unittest.TestCase):
     def test_harmless(self) -> None:
-        for access in self.PHASES:
-            for command in HARMLESS:
-                with self.subTest(command=command, phase=access["phase"]):
-                    self.assertEqual(decision(bash(command), freeze=FROZEN, access=access), "none")
+        for command in HARMLESS:
+            with self.subTest(command=command):
+                self.assertEqual(decision(bash(command)), "none")
 
     def test_mentions_in_both_shells(self) -> None:
         for command in MENTIONS:
             for shell in (bash, powershell):
                 with self.subTest(command=command, shell=shell.__name__):
-                    self.assertEqual(decision(shell(command), freeze=FROZEN, access=OBSERVE), "none")
+                    self.assertEqual(decision(shell(command), state="absent"), "none",
+                                     "a mention is not a command, even where every opinion asks")
 
     def test_heredoc_and_here_string_bodies_are_data(self) -> None:
         for command, shell in BODIES:
             with self.subTest(command=command):
-                self.assertEqual(decision(shell(command), freeze=FROZEN, access=OBSERVE), "none")
+                self.assertEqual(decision(shell(command), state="absent"), "none")
 
     def test_cannot_tell_asks(self) -> None:
-        for access in self.PHASES:
-            for command, shell, why in CANNOT_TELL:
-                with self.subTest(command=command, phase=access["phase"]):
-                    d, reason = decide(shell(command), access=access)
-                    self.assertEqual(d, "ask")
-                    self.assertIn(why, reason)
+        for command, shell, why in CANNOT_TELL:
+            with self.subTest(command=command):
+                d, reason = decide(shell(command))
+                self.assertEqual(d, "ask")
+                self.assertIn(why, reason)
 
     def test_ask_shows_the_description(self) -> None:
         _, reason = decide(bash("git frobnicate", description="Tidy refs"))
@@ -338,13 +285,12 @@ class Secrets(unittest.TestCase):
         ("mywrap infisical export", "mentions infisical"),
     ]
 
-    def test_denied_in_both_phases(self) -> None:
-        for access in ({"phase": "development"}, OBSERVE):
-            for command, shell in self.DENIED:
-                with self.subTest(command=command, phase=access["phase"]):
-                    d, reason = decide(shell(command), access=access)
-                    self.assertEqual(d, "deny")
-                    self.assertRegex(reason, "^SECRETS: ")
+    def test_denied(self) -> None:
+        for command, shell in self.DENIED:
+            with self.subTest(command=command):
+                d, reason = decide(shell(command))
+                self.assertEqual(d, "deny")
+                self.assertRegex(reason, "^SECRETS: ")
 
     def test_allowed(self) -> None:
         for command in self.ALLOWED:
@@ -352,13 +298,12 @@ class Secrets(unittest.TestCase):
                 self.assertEqual(decision(bash(command)), "none")
                 self.assertEqual(decision(powershell(command)), "none")
 
-    def test_infisical_changes_and_logins_ask_in_both_phases(self) -> None:
-        for access in ({"phase": "development"}, OBSERVE):
-            for command, why in self.ASKED:
-                with self.subTest(command=command, phase=access["phase"]):
-                    d, reason = decide(bash(command), access=access)
-                    self.assertEqual(d, "ask")
-                    self.assertIn(why, reason)
+    def test_infisical_changes_and_logins_ask(self) -> None:
+        for command, why in self.ASKED:
+            with self.subTest(command=command):
+                d, reason = decide(bash(command))
+                self.assertEqual(d, "ask")
+                self.assertIn(why, reason)
 
     def test_a_merge_behind_an_injector_meets_the_merge_guard(self) -> None:
         d, reason = decide(bash("infisical run -- gh pr merge 5 --squash"))
@@ -372,10 +317,9 @@ class ProfileStates(unittest.TestCase):
                         "git push", "docker push x/y", "mywrap railway up", "infisical export",
                         "infisical run -- printenv", "infisical login"]:
             with self.subTest(command=command):
-                d, reason = decide(bash(command), state="absent", freeze=FROZEN)
+                d, reason = decide(bash(command), state="absent")
                 self.assertEqual(d, "ask")
                 self.assertIn("no athena-orchestrator profile", reason)
-                self.assertEqual(FREEZE_CALLS, [])
 
     def test_no_profile_leaves_harmless_commands_alone(self) -> None:
         for command in ["ls", "pnpm test", "cd ..", "git status", "railway logs"]:
@@ -386,34 +330,6 @@ class ProfileStates(unittest.TestCase):
         d, reason = decide(bash("ls"), state="invalid")
         self.assertEqual(d, "ask")
         self.assertIn("profile is broken (broken for the test)", reason)
-
-
-class FreezeStatus(unittest.TestCase):
-    """The real freeze check: tiny Python commands, never a deploy."""
-
-    def run_check(self, code: str, timeout: Optional[int] = None) -> tuple:
-        with patched(FREEZE_TIMEOUT_S=timeout or ops_gate.FREEZE_TIMEOUT_S):
-            return ops_gate.freeze_status(".", f"'{PY}' -c \"{code}\"")
-
-    def test_exit_codes(self) -> None:
-        self.assertEqual(self.run_check("print('CLEAR')")[0], 0)
-        status = self.run_check("import sys; print('FROZEN: window'); sys.exit(1)")
-        self.assertEqual(status, (1, "FROZEN: window"))
-        self.assertEqual(self.run_check("import sys; sys.exit(2)")[0], 2)
-
-    def test_not_configured(self) -> None:
-        self.assertEqual(ops_gate.freeze_status(".", None), (0, ops_gate.NO_CHECK))
-
-    def test_missing_program(self) -> None:
-        code, report = ops_gate.freeze_status(".", "athena-no-such-freeze-binary")
-        self.assertIsNone(code)
-        self.assertIn("did not run", report)
-
-    def test_timeout_keeps_partial_output(self) -> None:
-        code, report = self.run_check("import time; print('partial line', flush=True); time.sleep(10)", timeout=2)
-        self.assertIsNone(code)
-        self.assertRegex(report, r"^FROZEN \(cannot check\): the freeze check timed out after 2 s")
-        self.assertIn("partial line", report)
 
 
 class Robustness(unittest.TestCase):

@@ -38,7 +38,7 @@ orchestrator or a human fills in later, for each package or decision.
 | `{{gate_command}}` | one `repo.gates` command; repeat the line for each |
 | `{{user_visible}}` | `rubric.user_visible` |
 | `{{condition}}` | one `rubric.conditions` entry; repeat for each |
-| `{{deploy_test}}`, `{{deploy_prod}}` | `deploy.test`, `deploy.prod` |
+| `{{deploy_dev}}`, `{{deploy_prod}}` | `deploy.dev`, `deploy.prod` |
 | `{{required_check}}` | `merge.required_check`; also the CI job id |
 | `{{date}}` | today, `YYYY-MM-DD` |
 | `{{adr_number}}` | the next free ADR number, four digits |

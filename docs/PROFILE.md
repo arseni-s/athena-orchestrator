@@ -7,7 +7,7 @@ in the plugin, and nothing in the profile restates the engine.
 
 ```
 <repo>/.claude/orchestration/
-  project.toml          settings: phase, gates, paths, environments
+  project.toml          settings: gates, paths, environments
   lenses/<agent>.md     project knowledge for one subagent (correctness.md is required)
 ```
 
@@ -36,12 +36,6 @@ it were enforced.
 |---|---|---|---|
 | `name` | string | — | Short name, used in reports, PR text and push notifications. |
 | `summary` | string | — | One line saying what the project is and what matters most in it. Every subagent reads it first. |
-
-### `[access]`
-
-| Key | Type | Default | Meaning |
-|---|---|---|---|
-| `phase` | string | — | `"development"`: Claude deploys and writes to the project's platforms; only destructive commands are denied. `"observe"`: after close-out; deploys, merges and platform changes are denied, and reading stays open. Only the user changes it: the destroy gate asks before any edit to this file. See [MODEL.md](MODEL.md) section 12. |
 
 ### `[repo]`
 
@@ -83,9 +77,12 @@ Project words that the shared severity rubric is read with.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `test` | string | — | What a merge deploys to, in words. |
-| `prod` | string | — | What counts as production: environments, databases and the platforms that host them. A decision that writes there is flagged for review. |
-| `freeze_check` | string | none | The project's one way to say "nothing deploys now" (a release window, a live event, a code freeze). A command, run in the repo root before any deploy and before a merge. Exit 0: clear. Exit 1: deploys are blocked, so deploys and merges are denied. Any other exit, a timeout (15 s) or a failure to start: deploys are denied and merges ask. It is split like a POSIX shell line and run without a shell, so use forward slashes in paths. |
+| `dev` | string | — | The development environments, in words: what a merge deploys to, everything the agent's credentials reach, and the command that rebuilds them from scratch. The agent has full control there. |
+| `prod` | string | — | What counts as production (environments, databases and the platforms that host them) and how the user deploys it by hand. The agent holds no credential for it. A decision that changes what production will do once deployed is flagged for review. |
+
+The access phases (`[access] phase`) and `deploy.freeze_check` were removed on 19 Nov 2026,
+when access moved from phases to environments ([MODEL.md](MODEL.md) section 12). A profile
+that still has them is invalid until they are deleted, and `deploy.test` is now `deploy.dev`.
 
 ### `[merge]`
 
@@ -188,8 +185,8 @@ throwaway local database to check SQL). Omit to allow none.
 
 | Gate | Needs the profile? | What it does |
 |---|---|---|
-| **Destroy gate** | no | Denies destructive commands in every phase (section 12 of MODEL.md has the list). Asks before any edit to `project.toml` or `.claude/settings*.json`. |
-| **Ops gate and merge guard** | yes | Phase rules, the freeze check, the merge guard, secret-printing denials (the Infisical CLI's own commands and whatever `infisical run` or `railway run` runs included). |
+| **Destroy gate** | no | Denies the destructive actions that reach beyond development (MODEL.md section 12.2, layer 5, has the list). Asks before any edit to `project.toml` or `.claude/settings*.json`. |
+| **Ops gate and merge guard** | yes | The merge guard, secret-printing denials (the Infisical CLI's own commands and whatever `infisical run` or `railway run` runs included). |
 | **Docs gate** | yes | `[docs]`. |
 
 How they behave when the profile is missing or broken. The gates fail closed, but a
@@ -199,7 +196,7 @@ project that has not adopted the plugin is not broken.
 |---|---|---|---|
 | No `project.toml` | Classifies commands with the built-in rules. Every opinion, including a deploy, a merge, a push without a branch and a secret-printing command, becomes "ask". | Off. | Stops: "run `/athena-orchestrator:adopt` first". |
 | `project.toml` unreadable, invalid, or a required key missing | Every shell call asks, with the reason. | Every commit is denied, and a session end is sent back once, with the reason. | Stops and names the problem. |
-| Valid | As configured. | As configured. | Runs (in `observe`: reports and stops). |
+| Valid | As configured. | As configured. | Runs. |
 
 **Every "ask" above is a "deny" in bypass-permissions mode**, in every gate, the fallbacks
 and the stub included: Claude Code never shows a hook's ask in that mode, so it would let
@@ -242,22 +239,22 @@ second, unrelated project use it unchanged?
 | Domain checks in correctness, reliability, security, spec, tests, ops | profile | lens files |
 | Heavy tools allowed per lens | profile | each lens file's "Heavy tools" |
 | Rubric words for "visible bug" and "realistic conditions" | profile | `[rubric]`; forbidden write paths and personal-data rules are the project's hard rules in `CLAUDE.md` |
-| A code freeze date, protected event windows | profile | one mechanism: `deploy.freeze_check`. The engine knows no dates. |
+| A code freeze date, protected event windows | dropped | production deploys only by the user's hand, so the user decides when; the engine knows no dates |
 | A deadline, weekly checkpoints, a cut date | plan | the plan's target dates; the session report lists the unscheduled follow-ups every time |
-| What test and production are | profile | `deploy.test`, `deploy.prod` |
+| What development and production are | profile | `deploy.dev`, `deploy.prod` |
 | Open questions with no safe default | plan | the plan's open questions table; no default means ask |
 | Required CI check | profile | `merge.required_check` |
 | Docs gate code and docs patterns, where docs go | profile | `[docs]` |
 | Several repos run as lanes, with a sync check and companion branches | dropped | one repo per project; two repos are two projects |
 | A configurable name for the human's rows | engine | fixed: owner `human` |
-| "Every production write needs approval" | changed | `access.phase`: development allows platform and production writes; the destroy gate denies the destructive ones; observe is read-only |
+| "Every production write needs approval" | changed | stronger: the agent holds no production credential at all, and the user deploys production by hand; full control of development instead |
 | Ops gate rules for Railway, git, gh and `docker push` | engine | always on |
 | Ops gate rules for other hosting and infrastructure tools, and the "prod" name tripwire | dropped | add a platform's rules when a project uses it |
-| The destroy gate | engine | trimmed to the same platforms; a bulk DELETE or UPDATE is denied, one with WHERE is not |
+| The destroy gate | engine | trimmed to the same platforms, and to the actions that reach beyond development; SQL is not its business |
 | Merge guard: auto-merge denied, aliases and extensions, API endpoints | engine | unchanged |
 | `[no-docs]` opt-out marker | engine | unchanged |
 | `CLAUDE.md` = `AGENTS.md` byte-identical | engine | applies when both exist |
 | Model tiers (inherit for deep roles, sonnet for checklist lenses) | engine | agent frontmatter; no profile setting until a project needs one |
 | Budgets (15 / 25 tool calls, 300 words), round cap 3, ~100-line escalation | engine | invariant core |
 | Escalation list, stop conditions, ladder, severity scale, report formats, log template, PR body | engine | invariant core |
-| Hook timeouts (30 s ops, 15 s docs, 15 s freeze check, 12 s guard, 10 s destroy) | engine | unchanged |
+| Hook timeouts (30 s ops, 15 s docs, 12 s guard, 10 s destroy) | engine | unchanged |

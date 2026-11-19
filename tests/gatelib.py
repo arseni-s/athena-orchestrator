@@ -1,7 +1,7 @@
 """Shared helpers for the gate tests: import the gates, build profiles, fake `gh` and `git`.
 
 The gates are imported and fed command strings. Nothing dangerous is ever executed: `gh`
-and `git` are replaced by a fake script, and the freeze check by a stub or a tiny Python.
+and `git` are replaced by a fake script.
 """
 from __future__ import annotations
 
@@ -34,10 +34,8 @@ BASE: dict[str, Any] = {
     "schema": 1,
     "project": {"name": "Sample", "summary": "A sample project for gate tests."},
     "rubric": {"user_visible": "a wrong total on a page", "conditions": ["restart"]},
-    "deploy": {"test": "the test environment", "prod": "the production environment",
-               "freeze_check": "fake-freeze-check"},
+    "deploy": {"dev": "the development environment", "prod": "the production environment"},
     "merge": {"required_check": "ci"},
-    "access": {"phase": "development"},
     "repo": {"main": "main", "gates": ["true"]},
     "docs": {"code": ["apps/", "packages/", "db/", "scripts/", ".claude/hooks/",
                       ".claude/settings.json", "package.json", "Dockerfile"],
@@ -46,7 +44,7 @@ BASE: dict[str, Any] = {
 }
 
 
-DROP = object()  # raw(deploy={"freeze_check": DROP}) removes that key
+DROP = object()  # raw(plan={"plan": DROP}) removes that key
 
 
 def raw(**changes: Any) -> dict[str, Any]:
@@ -175,7 +173,7 @@ class Fakes:
         return [sys.executable, "-B", self.script, spec], calls
 
     def command(self, rules: list[dict[str, Any]]) -> tuple[str, "callable"]:
-        """The same fake as a command line, for `deploy.freeze_check` (forward slashes)."""
+        """The same fake as a command line (forward slashes)."""
         cmd, calls = self.make(rules)
         return " ".join(f"'{a.replace(chr(92), '/')}'" for a in cmd), calls
 

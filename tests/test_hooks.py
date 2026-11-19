@@ -83,7 +83,8 @@ class RunThroughTheShell(unittest.TestCase):
         code, out = self.run_hook(destroy, {"tool_name": "Bash", "tool_input": {"command": "railway delete --yes"}}, PLUGIN)
         self.assertEqual((code, self.decision(out)), (0, "deny"))
         edit = {"tool_name": "Edit", "tool_input": {"file_path": ".claude/orchestration/project.toml",
-                                                    "old_string": "observe", "new_string": "development"}}
+                                                    "old_string": "required_check = \"ci\"",
+                                                    "new_string": "required_check = \"lint\""}}
         code, out = self.run_hook(destroy, edit, PLUGIN)
         self.assertEqual((code, self.decision(out)), (0, "ask"))
         code, out = self.run_hook(destroy, {**edit, "permission_mode": "bypassPermissions"}, PLUGIN)

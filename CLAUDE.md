@@ -22,18 +22,23 @@ stays `/athena`.
 ([docs/PROFILE.md](docs/PROFILE.md)) with an example, the agents, the `orchestrate`
 skill, the gates (`scripts/athena_profile.py`, `destroy_gate.py`, `ops_gate.py`,
 `docs_gate.py`, wired in `hooks/hooks.json`), the templates (`templates/README.md`
-lists each one, its target and its `{{placeholders}}`), the `adopt` and
-`close-out` skills, and the `/athena` shortcut (`shim/athena/SKILL.md`). Step 10, the
+lists each one, its target and its `{{placeholders}}`), the `adopt` skill, and
+the `/athena` shortcut (`shim/athena/SKILL.md`). Step 10, the
 trial, is done as far as a local repo allows (below).
 
 **Decisions from the design review (12 Nov 2026)**. They override the source material
 wherever it differs:
 - **One project is one repository.** No lanes, no sync check, no companion branches.
-- **Two access phases** (`access.phase`, MODEL.md section 12). In `development` Claude
-  deploys and writes to the platforms, production included, without asking. In `observe`
-  it can only read. Destructive commands are denied in both, by `destroy_gate.py`.
-- **One freeze mechanism**: the optional `deploy.freeze_check` command. The engine knows
-  no dates, deadlines or checkpoints.
+- **Development and production, not phases (19 Nov 2026)**, MODEL.md section 12. The agent
+  has full control of the development environments, resets and deletes included, to test
+  end to end. It holds no credential that reaches production, and the user deploys
+  production by hand (auto-deploy off, a chosen commit from the platform's dashboard).
+  Development rebuilds from scratch with one command, and anything set up there by hand
+  becomes seed or setup code. `destroy_gate.py` denies only what reaches beyond
+  development: the platform project or an environment, the repository, the main branch,
+  the secrets manager. This replaced the `development`/`observe` phases, the `close-out`
+  skill and `deploy.freeze_check`: a project rarely ends cleanly, and the user now
+  decides when production deploys. The engine knows no dates, deadlines or checkpoints.
 - **Platform rules cover Railway, git, gh, `docker push` and the Infisical CLI** only. Add
   another platform's rules when a project uses it.
 - **The broker** ([docs/BROKER.md](docs/BROKER.md)) is a design note. Build it when a
@@ -53,8 +58,7 @@ wherever it differs:
   with a 7-day release age and no install scripts, a secret scan in CI, and that
   identity. **No container for the agent and no credential broker by default**: both
   were weighed, with Infisical Agent Vault (BROKER.md), and left for a project that
-  needs them. The two access phases stay, because the agent holds real tokens while it
-  develops.
+  needs them.
 - **One orchestrator per repo, enforced (18 Nov 2026)**, MODEL.md section 3.3. A lease for
   parallel sessions was ported from a project without git, then weighed and left out: the
   user's approval sets the pace, and parallel branches would conflict on the plan file.
@@ -69,8 +73,8 @@ default path. Run 2, a real session, showed that **in bypass-permissions mode a 
 that mode; it also found the destroy gate missed a delete written into a script and then
 run, now closed. Run 3 ran `adopt` and `/athena` end to end in a real session on a
 throwaway local repo; both passed, up to the PR step that needs a remote. Not yet
-trialled: the PR, CI and merge path, a fix round, and `close-out`, which wait for a real
-project.
+trialled: the PR, CI and merge path and a fix round, which wait for a real project, and
+the dev/prod split of 19 Nov 2026.
 
 ## Hard rules
 
@@ -113,7 +117,6 @@ plugins/orchestrator/
   .claude-plugin/plugin.json           name "athena-orchestrator", version
   skills/orchestrate/SKILL.md          the loop, reading the project profile
   skills/adopt/SKILL.md                set up a new or existing project
-  skills/close-out/SKILL.md            end of active development: revoke, rotate, verify
   agents/*.md                          implementer, review-*, finding-verifier
   hooks/hooks.json, scripts/*.py       destroy gate, ops gate + merge guard, docs gate, orchestrator lock
   templates/                           CLAUDE.md, plan, PROCESS.md, spec, ADR, log, PR, CI, log-table SQL
@@ -140,7 +143,7 @@ Each step is one commit, validated.
    Add the fallback stub that projects keep in their own settings ("gate missing → ask").
 6. Templates.
 7. `adopt` skill (new project, and existing project: map what exists, never overwrite).
-8. `close-out` skill (MODEL.md section 12).
+8. `close-out` skill (MODEL.md section 12). Removed on 19 Nov 2026 with the access phases.
 9. The `/athena` shortcut. Plugin skills are always namespaced (`/athena-orchestrator:orchestrate`),
    with no alias mechanism, but user-level skills are not. A user-level skill `athena`
    (`~/.claude/skills/athena/SKILL.md`) passes its arguments straight to the

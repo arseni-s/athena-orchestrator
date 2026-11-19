@@ -11,7 +11,7 @@ import sys
 import unittest
 from typing import Any, Optional
 
-from gatelib import DROP, SCRIPTS, Fakes, TempDirs, bash, loaded, make_repo, ops_gate, powershell, raw, toml
+from gatelib import SCRIPTS, Fakes, TempDirs, bash, loaded, make_repo, ops_gate, powershell, raw, toml
 from test_ops_gate import patched
 
 MERGE = "gh pr merge 5 --squash --delete-branch"
@@ -46,16 +46,14 @@ class Base(unittest.TestCase):
             {"number": 5, "headRefOid": "0123456789abcdef0123", "statusCheckRollup": rollup})}])
 
     def decide(self, event: dict, gh: Optional[list] = None, git: Optional[list] = None,
-               freeze: Optional[str] = None, gh_timeout: Optional[int] = None,
-               **changes: Any) -> tuple[str, str]:
-        """Runs `_decide` with fakes. `freeze` is a freeze-check command (default: none set)."""
-        deploy = {"freeze_check": freeze or DROP}
+               gh_timeout: Optional[int] = None, **changes: Any) -> tuple[str, str]:
+        """Runs `_decide` with fakes."""
         attrs: dict[str, Any] = {"GH_CMD": gh or ["gh-must-not-be-called"],
                                  "GIT_CMD": git or ["git-must-not-be-called"],
                                  "GH_TIMEOUT_S": gh_timeout or ops_gate.GH_TIMEOUT_S}
         with patched(**attrs):
             out = ops_gate._decide({**event, "cwd": self.work},
-                                   loaded("ok", root=self.work, deploy=deploy, **changes)) or {}
+                                   loaded("ok", root=self.work, **changes)) or {}
         return out.get("permissionDecision", "none"), out.get("permissionDecisionReason", "")
 
 
@@ -170,67 +168,21 @@ class GhPrMerge(Base):
                 self.assertEqual(self.decide(shell(command), gh=self.view(GREEN)[0])[0], "none")
 
 
-class MergeFreeze(Base):
-    def clear(self) -> tuple:
-        return self.fakes.command([{"stdout": "CLEAR: nothing scheduled\n"}])
-
-    def window(self) -> tuple:
-        return self.fakes.command([{"exit": 1, "stdout": "FROZEN: release window \"Spring launch\"\n"}])
-
-    def test_green_clear_before_freeze_no_opinion_check_ran_once_each(self) -> None:
-        freeze, calls = self.clear()
+class MergeAndDeploy(Base):
+    def test_green_merge_passes_in_both_shells(self) -> None:
         for shell in (bash, powershell):
-            self.assertEqual(self.decide(shell(MERGE), gh=self.view(GREEN)[0], freeze=freeze)[0], "none")
-        self.assertEqual(len(calls()), 2)
+            self.assertEqual(self.decide(shell(MERGE), gh=self.view(GREEN)[0])[0], "none")
 
-    def test_no_freeze_check_configured_green_merge_passes(self) -> None:
-        self.assertEqual(self.decide(bash(MERGE), gh=self.view(GREEN)[0])[0], "none")
-
-    def test_observe_phase_denies_a_green_merge_without_calling_gh(self) -> None:
-        gh, calls = self.view(GREEN)
-        d, reason = self.decide(bash(MERGE), gh=gh, access={"phase": "observe"})
-        self.assertEqual(d, "deny")
-        self.assertRegex(reason, "^OBSERVE PHASE.*merges a PR")
-        self.assertEqual(calls(), [])
-
-    def test_window_denies(self) -> None:
-        d, reason = self.decide(bash(MERGE), gh=self.view(GREEN)[0], freeze=self.window()[0])
-        self.assertEqual(d, "deny")
-        self.assertRegex(reason, "^MERGE GUARD: a merge deploys to test, and the project's freeze check")
-        self.assertIn('"Spring launch"', reason)
-
-    def test_cannot_check_asks(self) -> None:
-        cases = [("exit 2", self.fakes.command([{"exit": 2, "stdout": "cannot reach the calendar\n"}])[0], "cannot reach"),
-                 ("missing program", "athena-no-such-freeze-binary", "did not run")]
-        for label, freeze, why in cases:
-            with self.subTest(label):
-                d, reason = self.decide(bash(MERGE), gh=self.view(GREEN)[0], freeze=freeze)
-                self.assertEqual(d, "ask")
-                self.assertRegex(reason, "^MERGE GUARD: a merge deploys to test and the project's freeze check")
-                self.assertIn(why, reason)
-
-    def test_red_pr_denied_without_running_the_check(self) -> None:
-        freeze, calls = self.window()
+    def test_red_or_unreadable_pr_denied(self) -> None:
         for gh in (self.view([run("ci", "FAILURE")])[0], self.fakes.make([{"exit": 1, "stderr": "offline"}])[0]):
-            d, reason = self.decide(bash(MERGE), gh=gh, freeze=freeze)
+            d, reason = self.decide(bash(MERGE), gh=gh)
             self.assertEqual(d, "deny")
             self.assertRegex(reason, "^MERGE GUARD: a main branch takes no direct pushes")
-        self.assertEqual(calls(), [])
 
-    def test_merge_and_deploy_run_the_check_once(self) -> None:
+    def test_merge_and_release_in_one_line(self) -> None:
         command = "gh pr merge 5 --squash && gh release create v1.2.3"
-        freeze, calls = self.clear()
-        self.assertEqual(self.decide(bash(command), gh=self.view(GREEN)[0], freeze=freeze)[0], "none")
-        self.assertEqual(len(calls()), 1)
-        frozen, calls = self.window()
-        self.assertRegex(self.decide(bash(command), gh=self.view(GREEN)[0], freeze=frozen)[1], "^DEPLOY FREEZE")
-        self.assertEqual(len(calls()), 1)
-
-    def test_pushes_do_not_run_the_check(self) -> None:
-        freeze, calls = self.window()
-        for command in ["git push -u origin wp/x", "gh pr view 5", "gh pr merge 5 --disable-auto"]:
-            self.assertEqual(self.decide(bash(command), freeze=freeze)[0], "none")
-        self.assertEqual(calls(), [])
+        self.assertEqual(self.decide(bash(command), gh=self.view(GREEN)[0])[0], "none")
+        self.assertEqual(self.decide(bash(command), gh=self.view([run("ci", "FAILURE")])[0])[0], "deny")
 
 
 class GitPush(Base):
@@ -269,8 +221,6 @@ class GitPush(Base):
 
     def test_tags_only_is_a_deploy_not_a_push_to_main(self) -> None:
         self.assertEqual(self.decide(bash("git push --tags"))[0], "none")
-        frozen = self.fakes.command([{"exit": 1, "stdout": "FROZEN\n"}])[0]
-        self.assertRegex(self.decide(bash("git push --tags"), freeze=frozen)[1], "^DEPLOY FREEZE")
 
     def branch(self, name: str, push: Optional[dict] = None) -> tuple:
         return self.fakes.make([{"match": "@{push}", **(push or {"exit": 128, "stderr": "fatal: no upstream"})},

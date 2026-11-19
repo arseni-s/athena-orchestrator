@@ -29,11 +29,19 @@ going until nothing can start, a stop condition hits, or the user interrupts.
 - **The user approves every merge.** You build, review and open the PR on your own; then
   you present the package's approval summary and merge only on the user's "approved"
   (per-package steps 10 and 11).
-- **Access.** In the development phase you may deploy and write to the project's
-  platforms, production included, when a package's spec calls for it. You use only the
+- **Access.** You have full control of the development environments (`deploy.dev`):
+  deploy, change variables, reset and reseed databases, create and delete services, to
+  build and test end to end. **Production (`deploy.prod`) is out of your reach**: you hold
+  no credential for it, and the user deploys it by hand. Never look for a way round that,
+  and never use a login you find on the machine that reaches production. You use only the
   access the plan's "Access inventory" lists, with credentials injected at runtime (for
   example `infisical run -- <command>`). Never read `.env` files or print secret values.
-  The gates deny destructive commands in every phase: never work around a gate.
+  The destroy gate denies the few destructive actions that reach beyond development:
+  never work around a gate.
+- **Development stays rebuildable.** Nothing in development exists only where it was
+  made. When a package, or the user, puts something there by hand (data, a test account,
+  a dashboard setting), the same package or the next one turns it into seed or setup
+  code, so the rebuild command brings it back.
 - Keep your own context small. Have subagents read the large files, and ask them for
   short structured reports.
 - The subagents come from this plugin. Dispatch them by their full names:
@@ -50,29 +58,25 @@ going until nothing can start, a stop condition hits, or the user interrupts.
    - **Exit 1, invalid**: stop, and pass on the problems it lists.
    - **Exit 0**: read `.claude/orchestration/project.toml`. The defaults it does not
      spell out are in the plugin's profile reference.
-2. **Phase.** If `access.phase` is `observe`, active development has ended: do not start
-   or continue any package. Report the plan's state and stop. New work re-opens
-   development, which only the user does, by changing the phase and re-granting access
-   from the inventory.
-3. **One orchestrator per repo.** Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/athena_lock.py" claim`
+2. **One orchestrator per repo.** Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/athena_lock.py" claim`
    in the main checkout. Exit 0: this session holds the repo's lock (it is shared by every
    worktree). **Exit 1**: another orchestrator is running in this repo; stop, and pass on
    what it prints: two would claim the same package and deploy over each other. **Exit 2**:
    it cannot check; stop, and pass on why. Never run `release --force` yourself: freeing
    another session's lock is the user's call.
-4. **Adopted and accepted.** Packages branch from the main branch, and the authority to
+3. **Adopted and accepted.** Packages branch from the main branch, and the authority to
    merge and deploy comes from the ADR that adopts this process. So stop, and tell the user
    what to do, when:
    - the profile is not on the main branch (`git show <main>:.claude/orchestration/project.toml`,
      or `origin/<main>` when there is a remote): the adoption is not merged yet;
    - a file in `plan.read_at_start` is an ADR whose status is still `Proposed`: the user
      has not accepted the process yet.
-5. **Paths.**
+4. **Paths.**
    - the main checkout: the repo this session started in;
    - a package worktree: next to it, `<repo folder>-wp-<id>`, on branch `wp/<id>-<slug>`;
    - plan, specs, ADRs and log: the `[plan]` paths (defaults: `docs/IMPLEMENTATION_PLAN.md`,
      `docs/work`, `docs/decisions`, `docs/decisions/log`).
-6. **Path patterns** in the profile match repo-relative paths: a trailing `/` means
+5. **Path patterns** in the profile match repo-relative paths: a trailing `/` means
    everything under that folder, `*` matches within one path segment, `**` matches any
    number of segments.
 
@@ -187,8 +191,8 @@ going until nothing can start, a stop condition hits, or the user interrupts.
     `--auto`. A rebase that needs a conflict resolved is a change: the implementer
     resolves it, the gates and the owning lens re-check it, and the user approves again.
     The merge guard denies the merge until every check on the PR's head commit has passed,
-    including `merge.required_check`, and while the project's freeze check blocks
-    deploys: wait, and never work around the guard. **Check that it landed**: `gh pr view
+    including `merge.required_check`: wait, and never work around the guard. The merge
+    deploys to development; production waits for the user to deploy it by hand. **Check that it landed**: `gh pr view
     <n> --json state,mergeCommit` says `MERGED`, and after `git fetch` the squash commit
     is on `origin/<main>`. Tell the user the SHA. Remove the worktree. Record the squash
     SHA in the log (it can be fixed in the next package's log commit).
@@ -241,7 +245,8 @@ Every answer from rungs 4 to 7 gets a decision log entry, and so does every spec
 deviation, every dismissed or deferred finding, and every status correction. When unsure
 whether something is worth logging, log it. Mark an entry **Flag: review** when it changes
 what `rubric.user_visible` describes, chooses a default for an open question, deviates
-from the spec, writes to production, or dismisses a Blocker.
+from the spec, changes what production will do once the user deploys it (a migration, a
+production setting, a deploy step), or dismisses a Blocker.
 
 **Scope**: work found outside the spec is not done. It becomes a follow-up. A minimal
 spec deviation is allowed when it touches no ADR or hard rule, and it is logged with
@@ -250,28 +255,29 @@ spec deviation is allowed when it touches no ADR or hard rule, and it is logged 
 ## 6. Ask the user first
 
 Never do these on your own. Say what will change and why, then wait:
-- anything a gate denied. A destructive command (deleting a project, service, volume or
-  environment; DROP, TRUNCATE or a bulk DELETE or UPDATE on a remote database; a force
-  push or delete of the main branch) never runs from this session: if the work truly
-  needs one, the user runs it in their own terminal;
-- a deploy or merge while the project's freeze check blocks deploys;
+- anything a gate denied. A destructive action that reaches beyond development (deleting
+  or transferring the platform project, deleting an environment; deleting the repository,
+  a release or a CI secret; a force push or delete of the main branch; deleting a secret
+  in the secrets manager) never runs from this session: if the work truly needs one, the
+  user runs it in their own terminal;
+- anything in production: you never deploy there, and never change it by any route;
 - accepting, changing or superseding an ADR (you may have one drafted as `Proposed`, and
   carry on under the current ADRs);
-- changing a hard rule in `CLAUDE.md` / `AGENTS.md`, or anything in the profile,
-  `access.phase` above all;
+- changing a hard rule in `CLAUDE.md` / `AGENTS.md`, or anything in the profile;
 - weakening a gate: hooks, CI, branch protection, skipping or deleting tests, `[no-docs]`
   on a change with behaviour;
 - weakening a safeguard: switching off or bypassing the package manager's release-age or
-  install-script setting, the secret scan, or the backup job;
+  install-script setting, the secret scan, the backup job, or the development rebuild;
 - cutting a package from scope;
 - an open question with **no safe default** in the plan;
 - deleting branches or worktrees you did not create;
 - granting, widening, extending or re-granting any platform access, and any step that
   would make a secret's value visible in the session.
 
-Your own work (branches, worktrees, PRs, deploys and platform changes a spec calls for,
-plan status, the log) needs no approval in the development phase. **Merging does**: it
-always waits for the user's approval of the package (per-package steps 10 and 11).
+Your own work (branches, worktrees, PRs, plan status, the log, and anything in the
+development environments, resets and deletes included) needs no approval. **Merging
+does**: it always waits for the user's approval of the package (per-package steps 10 and
+11).
 
 ## 7. Briefs
 
@@ -320,8 +326,8 @@ single package) when:
   branch). Report it; do not fix it inside this package;
 - a dependency turns out not to be done after all.
 
-Stop the whole session (after logging) when: the phase is `observe`, the main branch is
-red, or two stops in a row share a cause.
+Stop the whole session (after logging) when: the main branch is red, or two stops in a
+row share a cause.
 
 Never push past a dead end by weakening a test, widening the scope, or editing an ADR.
 
@@ -386,7 +392,10 @@ Reply "approved" to merge it, ask a question, or say what to change.
   (their approval summaries come first, in full), blocked or stopped (with the reason),
   waiting for another approval, and in progress;
 - **decisions flagged for review**: one line each, linking `<log path>/<ID>.md#d<n>`;
-- platform and production changes made this session, one line each;
+- platform changes made in development this session, one line each;
+- **ready for production**: the packages merged since the user last deployed production
+  (when the deploy status on the git host shows it), and anything the deploy needs from
+  the user (a migration that runs, a production setting to add);
 - status corrections made;
 - follow-up register: open rows whose target is `done`, and the `unscheduled` rows;
 - safeguards: each row of the plan's "Safeguards" table that is not `done`, with what is
