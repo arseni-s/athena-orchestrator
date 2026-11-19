@@ -581,7 +581,11 @@ reaches; the rest are on the agent's machine.
    commit of the main branch from the platform's dashboard. Server-side branch protection
    on the main branch (a pull request and the required check, no force push, no deletion,
    and nobody exempt) keeps what can reach production reviewed. No merge, branch, CI run
-   or agent token deploys to production.
+   or agent token deploys to production. Where the git host's plan offers no branch
+   protection (a private repository on GitHub Free), the human may go without it: the
+   access package records the choice, the merge guard is then the only check on the main
+   branch, and the human checks the commit they deploy against the session report.
+   Production stays out of reach either way, because it deploys only by hand.
 3. **A broker, where the platform cannot scope.** A small service holds a real platform
    token and offers the agent only named operations ("read logs", "deploy this
    service"), refusing all others. It is the answer when a platform cannot scope a token
@@ -760,7 +764,8 @@ directly never passes through them, which is why the server-side layers come fir
    - each of the agent's credentials, pointed at production, is refused. Use a call that
      changes nothing even if it is allowed (the environment's status, a list of its
      services), never a write and never a listing that prints values;
-   - a direct push to the main branch is refused by the git host, and a merge leaves
+   - a direct push to the main branch is refused by the git host (unless the access
+     package records that the plan has no branch protection), and a merge leaves
      production unchanged (its auto-deploy is off);
    - the git host token cannot read or change branch protection;
    - the production read-only role, if granted, can read, and a write attempt with it

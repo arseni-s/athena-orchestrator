@@ -172,7 +172,10 @@ branch. Writes go through the file tools, never a shell heredoc.
      environments only, with expiry dates and no account-wide token; production's
      auto-deploy switched off, so it deploys only when the user starts it; branch
      protection on the main branch (pull request and the required check, no force push,
-     no deletion, nobody exempt). The agent's database role owns the development
+     no deletion, nobody exempt). A private repository on a git host plan without branch
+     protection (GitHub Free) needs a paid plan for it: ask the user, and if they go
+     without, the spec records the choice and that the merge guard is then the only check
+     on the main branch. The agent's database role owns the development
      database; in production it gets no role, or a read-only one on named schemas. In
      the secrets manager the agent gets **its own identity**: a 1Password service account
      with read access to the `-dev` vaults only (one may serve every project's `-dev`
@@ -185,7 +188,7 @@ branch. Writes go through the file tools, never a shell heredoc.
      machine. Real values leave every `.env` file. Its Verify steps prove the wall: each
      agent credential pointed at production is refused (a call that changes nothing even
      if allowed, never a write and never a listing that prints values), a direct push to
-     the main branch is refused, the identity cannot open the `-prod` vault (a listing of
+     the main branch is refused (where there is branch protection), the identity cannot open the `-prod` vault (a listing of
      item names, never a value), and `push_secrets.py development --check` reports
      nothing only on the platform;
    - **dev rebuild** (owner `orchestrator`, unless the safeguard is `done`): one command
