@@ -12,6 +12,11 @@ after the final rebase, before the merge. Merge conditions: docs/PROCESS.md. -->
 <!-- Each Verify step in the spec: the command and its real output, trimmed to the
 relevant lines. "Tests pass" is not enough. -->
 
+### End to end (real output)
+<!-- The end-to-end run on the running product (`verify.e2e`): the command, then one line
+per flow, pass or fail, with the flows this package added or changed marked. For a
+changed flow, the evidence (screenshot or trace path). Or "none" with the spec's reason. -->
+
 ### Gates
 <!-- The gate commands and their result lines, re-run after the last rebase. -->
 
@@ -28,6 +33,8 @@ relevant lines. "Tests pass" is not enough. -->
 ### Checklist
 - [ ] Work package ID and spec linked above
 - [ ] Verify steps and gates run, **real output pasted** above
+- [ ] End-to-end run passed on the running product, flows of this package included (or "none" with the spec's reason)
+- [ ] Feature map updated for every flow added or changed; no expected result loosened
 - [ ] Review panel: no open Blocker or Major finding
 - [ ] Decision log written and linked above
 - [ ] Docs updated (or `[no-docs]` with a reason)

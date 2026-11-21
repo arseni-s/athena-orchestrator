@@ -1804,9 +1804,66 @@
    "file_path": "/repo/.claude/orchestration/lenses/ux.md",
    "content": "# UX"
   },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "lens files are the checks a package is judged by (21 Nov 2026); was: not protected"
+ },
+ {
+  "tool": "Edit",
+  "input": {
+   "file_path": "C:\\DEV\\repo-wp-b5\\.claude\\orchestration\\lenses\\tests.md",
+   "old_string": "- A flaky test is Major.",
+   "new_string": ""
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "a package worktree removing a lens rule, Windows path"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "rm .claude/orchestration/lenses/correctness.md"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "shell delete of a lens file"
+ },
+ {
+  "tool": "PowerShell",
+  "input": {
+   "command": "Set-Content -Path .claude\\orchestration\\lenses\\reliability.md -Value ''"
+  },
+  "expect": "ask",
+  "rule": "gate-edit",
+  "note": "PowerShell overwrite of a lens file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "cat .claude/orchestration/lenses/correctness.md"
+  },
   "expect": "none",
   "rule": "",
-  "note": "lens files are not protected by this gate"
+  "note": "allowed: reading a lens file"
+ },
+ {
+  "tool": "Bash",
+  "input": {
+   "command": "git show origin/main:.claude/orchestration/lenses/tests.md"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "allowed: a reviewer reading the main branch's lens file"
+ },
+ {
+  "tool": "Write",
+  "input": {
+   "file_path": "/repo/docs/FEATURES.md",
+   "content": "| F1 | Book a berth | boater |"
+  },
+  "expect": "none",
+  "rule": "",
+  "note": "allowed: the feature map is product docs the implementer updates in each package"
  },
  {
   "tool": "Bash",

@@ -48,6 +48,17 @@ security = [".claude/", ".github/workflows/", ".env.example", "config/production
 # Empty: the project has no user interface, and the UX lens never runs.
 ux = []
 
+[verify]
+# End to end: the commands that start the product and run every flow in the feature map,
+# printing one result line per flow ID. A package that changes what the product does is done
+# only when they pass. Empty: there is no harness yet, and the plan's end-to-end harness
+# package comes first.
+e2e = []
+# Run against development after each merge has deployed there: the feature map's smoke flows.
+smoke = []
+# The feature map: every user flow, its steps and its expected result.
+features = "docs/FEATURES.md"
+
 [docs]
 code = [".claude/"]
 docs = ["docs/**/*.md", "README.md", "CLAUDE.md", "AGENTS.md"]

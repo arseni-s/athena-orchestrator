@@ -37,9 +37,11 @@ mechanical gates, and asks the user to read decisions instead.
 
 ## Consequences
 
-- Definition of done: gates green, Verify steps run with real output in the PR, docs
+- Definition of done: gates green, Verify steps run with real output in the PR, the
+  end-to-end run passed on the running product (the flows in the feature map), docs
   updated, no open Blocker or Major finding, decision log written, approved by the user,
-  merged and deployed to development.
+  merged, deployed to development, and the smoke flows passed there. A package that
+  changes what the product does is not done on unit tests alone.
 - The user reads each package's approval summary and its flagged decisions instead of
   the diff, and nothing merges without their "approved". Nothing reaches production
   until the user deploys it.

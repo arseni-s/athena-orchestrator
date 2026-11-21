@@ -31,8 +31,9 @@ point the profile at it instead of creating a second one.
    gates need Python 3.11+).
    - **Exit 0**: the project is adopted already. Run steps 2 and 3 only for what is
      missing (lens files, templates whose targets do not exist, a plan section such as
-     "Safeguards" that an earlier version did not have, the `/athena` shortcut), and
-     never touch the profile.
+     "Safeguards" that an earlier version did not have, the feature map and the
+     **end-to-end harness** package when the profile's `verify.e2e` is empty and the plan
+     has no such package, the `/athena` shortcut), and never touch the profile.
    - **Exit 1**: a profile exists but is invalid. Report its problems and stop: the user
      fixes the profile, because only the user changes it.
    - **Exit 2**: carry on.
@@ -86,6 +87,7 @@ that writes. Never read `.env` files.
 | Hosting and deploys | `Dockerfile`, `railway.*`, `fly.toml`, `vercel.json`, `Procfile`, deploy scripts | `{{deploy_dev}}`, `{{deploy_prod}}`, `paths.ops` |
 | Database and migrations | `migrations/`, `db/`, `alembic/`, `prisma/` | `paths.full_panel`, `paths.ops`, the event-table package |
 | User interface | `templates/`, `static/`, `src/components/`, `app/`, `pages/`, `frontend/` | `paths.ux`, and whether `ux.md` is needed |
+| End-to-end tests | `playwright.config.*`, `cypress.config.*`, `e2e/`, `tests/e2e/`, `*.spec.ts` beside a browser tool, API or CLI tests that start the app, their scripts in the manifest; a list of features or user flows in the docs | `verify.e2e` and `verify.smoke` when a harness starts the product and runs its flows; the feature map's first rows; whether the harness package is needed |
 | Auth, config, secrets handling | `auth/`, `config.*`, `.env.example`, lockfiles | `paths.security` |
 | Secrets on disk | by name only, never read: tracked `.env` files (`git ls-files`), untracked ones (`.env`, `.env.local`); `.infisical.json`; `op://` reference files; the platform's variable names (never values) | the secrets manager, the "identity" safeguard row, the push script's targets; a tracked `.env` file that is not an example file is the first thing in the report |
 | Dependency install settings | the lockfile (which package manager), `.npmrc`, `pnpm-workspace.yaml`, `bunfig.toml`, `pyproject.toml` / `uv.toml`, and how CI installs | the "dependencies" safeguard row |
@@ -118,6 +120,8 @@ mapping.
    - the **hard rules**: what must never happen;
    - which code is **critical** (where a bug is visible or loses data:
      `paths.full_panel`);
+   - the **flows that matter**: what users come to do, in their words, for the feature
+     map's first rows, and which few of them show that a deployment is alive (`smoke`);
    - the **safeguards** the survey could not see: whether the database has a backup
      outside the hosting platform, and whether a restore was ever tested.
 2. **Present the mapping**: one table, one row per template in the templates README, with
@@ -154,19 +158,25 @@ branch. Writes go through the file tools, never a shell heredoc.
 2. **The profile**, `.claude/orchestration/project.toml`, from `project.toml`. Fill in the
    `[paths]` and `[docs]` patterns from the survey: `docs.code` lists every folder with
    behaviour, `docs.docs` every documentation path. Set a `[plan]` key only where the
-   project's path differs from the default. The destroy gate asks before this write:
-   that is expected; say so before you write. Then check it with the loader until it
-   exits 0.
+   project's path differs from the default. `[verify]`: when the survey found a harness
+   that starts the product and runs its flows, its commands go in `e2e` (and the
+   smoke subset in `smoke`); otherwise both stay empty and the harness package builds
+   it. The destroy gate asks before this write: that is expected; say so before you
+   write. Then check it with the loader until it exits 0.
 3. **Lens files** in `.claude/orchestration/lenses/`, from `lens.md`: `correctness.md`
-   always (the domain truth: its sources, what to check, five or so concrete inputs to
-   trace), and `ux.md` when `paths.ux` is not empty. Add `reliability.md` or another lens
-   only where the survey found something specific to say. Short: under 40 lines each.
+   always (the domain truth: its sources, what to check, its invariants, five or so
+   concrete inputs to trace), and `ux.md` when `paths.ux` is not empty. Add
+   `reliability.md` or another lens only where the survey found something specific to
+   say. Short: under 40 lines each. The destroy gate asks before each of these writes
+   too: lens files are the profile.
 4. **Settings.** Merge `settings.json` into the project's `.claude/settings.json`: add
    the `enabledPlugins` entry and the `PreToolUse` stub hook, and keep every key and hook
    the file already has. Never replace the file. The destroy gate asks here too.
 5. **Documents**, each `create` or `append` from the mapping: `CLAUDE.md` (and
    `AGENTS.md` byte-identical, when the project keeps both), the plan, `PROCESS.md`, the
-   ADR index, the spec template, the log index, the PR template, and `ci.yml` when the
+   ADR index, the spec template, the feature map (`FEATURES.md`, with a row for each flow
+   the user named or the survey found, `smoke` marked), the log index, the PR template,
+   and `ci.yml` when the
    project has no CI. CI gets one step per gate command, after the setup steps the
    toolchain needs; those install from the lockfile only. Before them comes the
    secret-scan step (`{{secret_scan}}`): `gitleaks` or `infisical scan` over the pull
@@ -218,6 +228,25 @@ branch. Writes go through the file tools, never a shell heredoc.
      the main branch is refused (where there is branch protection), the identity cannot open the `-prod` vault (a listing of
      item names, never a value), and `push_secrets.py development --check` reports
      nothing only on the platform;
+   - **end-to-end harness** (owner `orchestrator`, unless `verify.e2e` is set; first among
+     the orchestrator's packages, and every package that changes what the product does
+     depends on it; its spec contains the words "end-to-end harness", which is how the
+     orchestrator finds it): one command that starts the product (against local services,
+     or development) and runs every `active` flow in the feature map the way its user
+     would, through the real entry point: a browser test tool for a web interface
+     (Playwright, unless the project already uses another), requests to the running
+     service for an API, the built binary for a command-line tool. It prints one line per
+     flow ID, pass or fail; on a failure, the step that failed and the evidence (a
+     screenshot or trace for a page, the request and response for an API), saved to a
+     folder that git ignores. It waits for conditions, never for a fixed time, and runs
+     in a few minutes. A smoke subset (the flows marked `smoke`) runs against the
+     development deployment. The tool installs under the dependency safeguards (release
+     age, no install scripts unless allowed by name; a browser download is the tool's own
+     setup step, named in the spec). The run joins CI's required check where the product
+     can start in CI. The package adds the `[verify]` commands to the profile, which the
+     destroy gate puts to the user. Its Verify steps: the run passes every flow; a flow
+     broken on purpose in a scratch branch fails it with the step and the evidence; the
+     smoke run passes against development;
    - **dev rebuild** (owner `orchestrator`, unless the safeguard is `done`): one command
      that takes an empty development environment to a working one: migrations, a seed
      script with invented data (never a copy of production), and whatever else
@@ -249,7 +278,12 @@ branch. Writes go through the file tools, never a shell heredoc.
    - **event table and heartbeat** (owner `orchestrator`, only when the project has a
      database): copy `log_event.sql` next to its spec, as `<ID>-log_event.sql`, for the
      implementer to start from;
-   - the user's own first packages, when they named any.
+   - the user's own first packages, when they named any, each with the flows it adds or
+     changes under "End to end", and the harness package among its dependencies.
+
+   Specs of packages the user cannot notice (access, backup, safeguards, docs and
+   boundary tests) say `End to end: none` with the reason, so they can run before the
+   harness. The dev rebuild and the event table name the smoke flows, so they wait for it.
 
 ## 5. Verify
 
@@ -308,7 +342,9 @@ One screen:
   5. switch off auto-deploy for the production environment, if the access package has
      not: from now on production deploys only when they start it;
   6. start a new Claude Code session in the repo, so the plugin's hooks load, and run
-     `/athena`;
+     `/athena`. When there is no end-to-end harness yet, its package runs first: until it
+     lands, packages that change what the product does wait, because none of them can
+     be done without being seen working;
 - **what no plugin can do for them** (the orchestration model, section 12.6), in four
   lines: a passkey or hardware key on email, the git host, the hosting platform, the
   secrets manager and the domain registrar; a password manager instead of

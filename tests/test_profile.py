@@ -24,6 +24,18 @@ class Check(unittest.TestCase):
         self.assertEqual(data["repo"]["setup"], [])
         self.assertEqual(data["paths"]["ux"], [])
         self.assertEqual(data["deploy"], {"dev": "the development environment", "prod": "the production environment"})
+        # No [verify] table: no end-to-end harness yet (MODEL.md 4.1), and the default feature map.
+        self.assertEqual(data["verify"], {"e2e": [], "smoke": [], "features": "docs/FEATURES.md"})
+
+    def test_verify(self) -> None:
+        data, found = athena_profile.check(raw(verify={"e2e": ["npx playwright test"], "smoke": ["npm run smoke"],
+                                                       "features": "docs/product/FEATURES.md"}))
+        self.assertEqual(found, [])
+        self.assertEqual(data["verify"]["e2e"], ["npx playwright test"])
+        self.assertEqual(data["verify"]["features"], "docs/product/FEATURES.md")
+        for bad in ({"e2e": "npx playwright test"}, {"smoke": [1]}, {"features": ""}, {"flows": []}):
+            with self.subTest(verify=bad):
+                self.assertNotEqual(problems(raw(verify=bad)), [])
 
     def test_required(self) -> None:
         cases = {

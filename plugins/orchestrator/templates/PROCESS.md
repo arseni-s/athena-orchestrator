@@ -22,7 +22,10 @@ frees itself once its Claude process has ended.
    "plan mode": the implementer writes a plan, and the spec and correctness reviewers
    check it before any code is written.
 3. **Implement**: the implementer subagent works in the worktree.
-4. **Gates**: the orchestrator re-runs `repo.gates` and the spec's Verify steps itself.
+4. **Gates**: the orchestrator re-runs `repo.gates`, the **end-to-end run** on the
+   running product (`verify.e2e`, every flow in the [feature map](FEATURES.md)) and the
+   spec's Verify steps itself. A check that fails and then passes on a re-run is flaky,
+   not green.
 5. **Review panel**: the full or the light panel (below) runs in parallel, one lens per
    reviewer.
 6. **Verify findings**: the finding-verifier tries to disprove each Blocker and Major,
@@ -35,6 +38,19 @@ frees itself once its Claude process has ended.
    for a change (it goes back to the implementer). Reply **"approved"** to merge.
 10. **Merge**: one squash commit per package, when every merge condition holds; the
     orchestrator checks that it landed. A merge deploys to development ({{deploy_dev}}); production waits for you to deploy it.
+11. **Smoke**: once the merge has deployed to development, the orchestrator runs the smoke
+    flows there (`verify.smoke`). Only then is the package done.
+
+**Done means it ran.** A package that changes what the product does is finished only when
+the product, running, did it: the end-to-end run passes the flows its spec names, and the
+smoke flows pass in development after the merge. Unit tests can pass while a feature is
+broken. Until the project has an end-to-end harness, such packages wait for the package
+that builds it.
+
+**The checks are not the package's to change.** Reviewers judge by the spec, the lens
+files, the hard rules and the feature map as they are on `{{main}}`. A package that
+changes one of them says so in its summary, and the profile's files (lens files included)
+change only with your word.
 
 The orchestrator never edits code. It writes only plan status, the decision log and PR
 text.
@@ -62,13 +78,17 @@ What each lens checks in this project is in `.claude/orchestration/lenses/`.
 
 Every finding has a concrete **scenario**: the inputs or state that lead to the wrong
 outcome. A finding without one is a Nit at most. A Blocker the verifier cannot disprove
-counts as confirmed.
+counts as confirmed. A **pre-existing** problem (one the diff neither introduced nor made
+worse) keeps its severity but never blocks the package: it becomes a follow-up, and a
+pre-existing Blocker is flagged for you.
 
 ## Merge conditions
 
 The orchestrator merges only when all of these hold:
 - CI is green on the PR head commit, including the `{{required_check}}` check;
 - the spec's Verify steps were run and their real output is in the PR;
+- the end-to-end run passed on the final commit, the flows this package added or changed
+  included, with its real output in the PR;
 - no confirmed Blocker or Major is open;
 - docs are updated (the docs gate passes);
 - the branch is rebased on `{{main}}`, with the gates re-run after the rebase;
@@ -129,3 +149,10 @@ To undo a whole package, revert its squash commit (`git revert <sha>`). Entries 
 Record the incident in the package's log. Change the rule here, and in the profile or a
 lens file, in one PR. If the change is policy, amend the ADR above, which only the user
 accepts.
+
+**A miss becomes a rule.** When something gets past the panel and the end-to-end run (a
+change you ask for at approval because it is a bug, a smoke failure in development, a
+revert), the orchestrator logs it as a `miss` and proposes the rule that would have caught
+it: an item in a lens file's "Rules from misses" (what in a diff wakes it, the check, and
+where it came from), or a new flow in the feature map. You decide whether it goes in. Keep
+the lens files short: merge or retire items when one passes 40 lines.

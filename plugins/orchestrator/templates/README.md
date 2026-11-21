@@ -10,6 +10,7 @@ skill file).
 | `IMPLEMENTATION_PLAN.md` | `docs/IMPLEMENTATION_PLAN.md` (`plan.plan`) | 1 |
 | `decisions-README.md` | `docs/decisions/README.md` (`plan.adrs`): the ADR index and template | 1 |
 | `work-README.md` | `docs/work/README.md` (`plan.specs`): the spec template | 1 |
+| `FEATURES.md` | `docs/FEATURES.md` (`verify.features`): the feature map the end-to-end run follows and grades against | 1 |
 | `project.toml` | `.claude/orchestration/project.toml`: the profile | 3 |
 | `lens.md` | `.claude/orchestration/lenses/correctness.md` (required), and any other lens file | 3 |
 | `settings.json` | merged into `.claude/settings.json`: enables the plugin, and the gates-missing stub | 3 |

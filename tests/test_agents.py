@@ -21,6 +21,7 @@ SHARED = {
     "Modes": REVIEWERS,
     "Rubric": REVIEWERS + ["finding-verifier"],
     "Safety": REVIEWERS + ["finding-verifier"],
+    "The checks come from the main branch": REVIEWERS + ["finding-verifier"],
 }
 
 
@@ -82,6 +83,20 @@ class AgentFiles(unittest.TestCase):
         for stem in REVIEWERS:
             with self.subTest(agent=stem):
                 self.assertIn("LENS FILE:", section(parse(self.files[stem])[1], "Report"))
+        # A review counts only for the commit it read (MODEL.md 5.3): the orchestrator
+        # sends a lens again when REVIEWED is not the head it asked for.
+        for stem in REVIEWERS + ["finding-verifier"]:
+            with self.subTest(agent=stem):
+                self.assertIn("REVIEWED:", section(parse(self.files[stem])[1], "Report"))
+
+    def test_rubric_knows_pre_existing(self) -> None:
+        rubric = section(parse(self.files["review-spec"])[1], "Rubric")
+        self.assertIn("**Pre-existing**", rubric)
+
+    def test_implementer_reports_end_to_end(self) -> None:
+        body = parse(self.files["implementer"])[1]
+        self.assertIn("## Done means it ran", body)
+        self.assertIn("\nE2E:", section(body, "Report (return exactly this)"))
 
 
 if __name__ == "__main__":
