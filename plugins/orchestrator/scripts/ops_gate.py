@@ -60,10 +60,11 @@ from typing import Any, Optional, Union
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import athena_profile  # noqa: E402  (the sibling module: profile loading and path patterns)
+import session_secrets  # noqa: E402  (the sibling module: the project's GH_TOKEN for gh)
 
-# Merge guard: all its `gh`/`git` calls share one budget, well inside the 30 s hook
+# Merge guard: all its `gh`/`git`/`op` calls share one budget, well inside the 30 s hook
 # timeout (a hook timeout fails open). Tests replace GH_CMD and GIT_CMD in-process.
-GUARD_BUDGET_S = 12
+GUARD_BUDGET_S = 20
 GH_TIMEOUT_S = 10
 GIT_TIMEOUT_S = 5
 GH_CMD = ["gh"]
@@ -1115,12 +1116,13 @@ def merge_problems(view_json: str) -> list[str]:
     return [f"{where} has {'; '.join(problems)}. {WHAT_TO_DO}"] if problems else []
 
 
-def _tool(cmd: list[str], cwd: str, deadline: float, limit: int) -> tuple[Optional[int], str, str]:
+def _tool(cmd: list[str], cwd: str, deadline: float, limit: int,
+          extra_env: Optional[dict[str, str]] = None) -> tuple[Optional[int], str, str]:
     """(exit code or None if it did not finish, stdout, what went wrong)."""
     remaining = deadline - time.monotonic()
     if remaining < 1:
         return None, "", "the merge guard ran out of time (too many checks in one command)"
-    env = {**os.environ, "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1",
+    env = {**os.environ, **(extra_env or {}), "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1",
            "GIT_TERMINAL_PROMPT": "0", "NO_COLOR": "1"}
     timeout = min(limit, remaining)
     try:
@@ -1134,17 +1136,85 @@ def _tool(cmd: list[str], cwd: str, deadline: float, limit: int) -> tuple[Option
     return out.returncode, out.stdout, f"exited {out.returncode}: {' '.join(first) or '(no output)'}"
 
 
+def gh_token(cwd: str, deadline: float) -> tuple[dict[str, str], str]:
+    """({"GH_TOKEN": value} or {}, problem). A hook does not see the variables the session-start
+    loader gave the session, so when gh has no token in this process, read the project's own
+    from 1Password (session_secrets.py), within half of what is left of the budget. No config
+    or no stored token: {}, and gh uses its own login."""
+    if os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN"):
+        return {}, ""
+    remaining = deadline - time.monotonic()
+    if remaining < 4:
+        return {}, "the merge guard ran out of time"
+    try:
+        return session_secrets.env_values(cwd, ["GH_TOKEN"], remaining / 2), ""
+    except session_secrets.Problem as exc:
+        return {}, str(exc)
+
+
 def _check_merge(merge: Merge, cwd: str, chdir: bool, deadline: float) -> list[str]:
     if merge.pr is None and chdir:
         return ["merges the current branch's PR after a directory change (cannot tell which PR); "
                 "name it: gh pr merge <n>"]
     cmd = GH_CMD + ["pr", "view"] + ([merge.pr] if merge.pr else []) + (
         ["-R", merge.repo] if merge.repo else []) + ["--json", "number,headRefOid,statusCheckRollup"]
-    code, out, err = _tool(cmd, cwd, deadline, GH_TIMEOUT_S)
+    token, problem = gh_token(cwd, deadline)
+    if problem:
+        return [f"cannot read GH_TOKEN for the PR's checks, so the merge is denied: {problem}"]
+    code, out, err = _tool(cmd, cwd, deadline, GH_TIMEOUT_S, token)
+    if code != 0 and NO_CHECKS_PERMISSION in err:
+        out, actions_err = _actions_rollup(merge, cwd, deadline, token)
+        code, err = (0, "") if out is not None else (code, f"{err}; then from GitHub Actions: {actions_err}")
     if code != 0:
         return [f"cannot check the PR's CI, so the merge is denied: gh pr view {err}. Check that "
                 "gh is installed, logged in (gh auth status) and online, then retry"]
     return merge_problems(out)
+
+
+# A fine-grained personal access token has no permission that reads check runs, so GitHub
+# refuses `statusCheckRollup` (and `gh pr checks`). The guard then builds the same rollup from
+# what such a token can read: the GitHub Actions jobs on the PR's head commit (Actions: read;
+# a job's name is its check's name) and the commit statuses (Commit statuses: read). A check
+# run posted by another app is not visible this way; the required check is a CI job.
+NO_CHECKS_PERMISSION = "Resource not accessible by personal access token"
+
+
+def _actions_rollup(merge: Merge, cwd: str, deadline: float,
+                    token: dict[str, str]) -> tuple[Optional[str], str]:
+    """(`gh pr view` JSON with a statusCheckRollup built from Actions jobs and statuses, or None, why)."""
+    env = {**token, **({"GH_REPO": merge.repo} if merge.repo else {})}
+    view = GH_CMD + ["pr", "view"] + ([merge.pr] if merge.pr else []) + (
+        ["-R", merge.repo] if merge.repo else []) + ["--json", "number,headRefOid"]
+    code, out, err = _tool(view, cwd, deadline, GH_TIMEOUT_S, env)
+    if code != 0:
+        return None, f"gh pr view {err}"
+    try:
+        head = json.loads(out)
+        sha = str(head["headRefOid"])
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ValueError(f"head commit {sha!r}")
+        code, out, err = _tool(GH_CMD + ["api", f"repos/{{owner}}/{{repo}}/actions/runs?head_sha={sha}&per_page=100"],
+                               cwd, deadline, GH_TIMEOUT_S, env)
+        if code != 0:
+            return None, f"gh api actions/runs {err}"
+        rollup: list[dict] = []
+        for run in json.loads(out)["workflow_runs"]:
+            code, out, err = _tool(GH_CMD + ["api", f"repos/{{owner}}/{{repo}}/actions/runs/{int(run['id'])}/jobs?per_page=100"],
+                                   cwd, deadline, GH_TIMEOUT_S, env)
+            if code != 0:
+                return None, f"gh api actions/runs/{run['id']}/jobs {err}"
+            rollup += [{"__typename": "CheckRun", "name": job["name"], "status": str(job["status"] or "").upper(),
+                        "conclusion": str(job.get("conclusion") or "").upper()}
+                       for job in json.loads(out)["jobs"]]
+        code, out, err = _tool(GH_CMD + ["api", f"repos/{{owner}}/{{repo}}/commits/{sha}/status"],
+                               cwd, deadline, GH_TIMEOUT_S, env)
+        if code != 0:
+            return None, f"gh api commits/status {err}"
+        rollup += [{"__typename": "StatusContext", "context": s["context"], "state": str(s["state"]).upper()}
+                   for s in json.loads(out)["statuses"]]
+    except (ValueError, KeyError, TypeError) as exc:
+        return None, f"unexpected answer ({exc!r})"
+    return json.dumps({"number": head.get("number"), "headRefOid": sha, "statusCheckRollup": rollup}), ""
 
 
 def _check_push(push: Push, cwd: str, chdir: bool, deadline: float) -> list[str]:

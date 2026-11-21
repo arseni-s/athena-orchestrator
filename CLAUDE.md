@@ -53,6 +53,13 @@ wherever it differs:
   Injection hides a value from the transcript, not from the agent, so development holds
   only values that are cheap to lose, and a credential with no test account stays in
   production.
+- **The agent's tokens load at session start (21 Nov 2026)**, MODEL.md section 12.3. One
+  1Password service account per project, opening only its `-dev` vault; the user stores
+  its token once with `scripts/session_secrets.py setup` (adopt step 1.4 opens the
+  window), which writes `.claude/session-secrets.json` from what the token opens. The
+  plugin's SessionStart hook loads the variables; the merge guard reads `GH_TOKEN` itself,
+  and reads CI from Actions jobs when a fine-grained token cannot read check runs. This
+  replaced a launcher, which left an editor opened any other way without tokens.
 - **The broker** ([docs/BROKER.md](docs/BROKER.md)) is a design note. Build it when a
   project needs it.
 - The reliability and UX lenses are general; a project's specifics go in its lens files.

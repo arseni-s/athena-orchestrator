@@ -692,10 +692,26 @@ directly never passes through them, which is why the server-side layers come fir
      exposes development values only, which are cheap to lose by design (rule 3). In
      Infisical, where the plan cannot limit an identity to an environment, production
      lives in a second project the identity is not a member of;
-   - **kept out of the session's reach.** Its token stays in the human's password manager.
-     The human starts the agent from a launcher that puts it in the session's environment
-     (`OP_SERVICE_ACCOUNT_TOKEN`, or an Infisical access token of a few hours), so it never
-     appears in a file or the transcript;
+   - **kept out of the transcript.** Each project has its own service account, which opens
+     exactly that project's `-dev` vault. The human stores its token once, in their own
+     terminal, with `scripts/session_secrets.py setup` (adopt opens the window): the token
+     comes from the clipboard and goes into the operating system's credential store
+     (Windows Credential Manager), never into a file in the repository or the transcript.
+     The same run finds the vault and the agent's token items in it (API Credential items
+     whose title names GitHub or Railway) and writes `.claude/session-secrets.json`: the
+     credential's name, the vault, and the `op://` reference behind each variable, no
+     value. The plugin's SessionStart hook then loads them into every session, however
+     the editor was opened: it checks that the token opens exactly that vault, and prints
+     variable names only. Hooks do not see those variables, so the merge guard reads
+     `GH_TOKEN` itself the same way. (A launcher that started the editor with the token
+     was tried first, 21 Nov 2026: an editor opened any other way had no tokens, and
+     nothing said so.) The loader knows 1Password only; an Infisical project starts the
+     session with its access token in the environment;
+   - **able to merge with a fine-grained git host token.** Such a token has no permission
+     that reads check runs, so GitHub refuses `gh pr checks` and the PR's
+     `statusCheckRollup` to it. The merge guard then reads the same facts from the
+     GitHub Actions jobs on the PR's head commit and the commit statuses, which the
+     token can read with **Actions: read** and **Commit statuses: read**;
    - **within its limits.** 1Password service accounts have hourly and daily request
      limits per plan, the daily one shared by every service account in the account. Tests
      need no secrets, and the app reads its variables from the platform, so 1Password is
@@ -709,8 +725,8 @@ directly never passes through them, which is why the server-side layers come fir
      secrets manager on that machine. The human's production access lives in the browser,
      behind a passkey, or on another user account or machine;
    - the agent's **git host credential** is a fine-grained token for this one repository:
-     contents, pull requests and checks, and no administration, environments or
-     deployments permission. It cannot change branch protection, read CI's production
+     contents and pull requests (read and write), actions and commit statuses (read), and
+     no administration, environments or deployments permission. It cannot change branch protection, read CI's production
      credential, or approve a production deployment.
 3. **Secrets never enter the transcript.** Inject them into the process at runtime
    through the secrets manager's CLI (`op run --env-file=<refs> -- <command>`, where the

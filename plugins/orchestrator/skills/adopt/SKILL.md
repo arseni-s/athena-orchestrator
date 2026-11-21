@@ -37,10 +37,34 @@ point the profile at it instead of creating a second one.
      fixes the profile, because only the user changes it.
    - **Exit 2**: carry on.
 3. Check the working tree: `git status --porcelain`. Uncommitted changes: stop and ask the
-   user to commit or stash them first, so adopting lands as one reviewable commit. One
-   exception: `.claude/settings.json`, when its only change is the `enabledPlugins` entry
-   that `claude plugin install --scope project` writes. Keep it, and it goes into
-   adopt's commit with the settings merge (step 4.4).
+   user to commit or stash them first, so adopting lands as one reviewable commit. Two
+   exceptions, which go into adopt's commit: `.claude/settings.json`, when its only change
+   is the `enabledPlugins` entry that `claude plugin install --scope project` writes (it
+   is merged in step 4.4), and a new `.claude/session-secrets.json` (step 1.4).
+4. **The agent's credentials**, before anything else, so that one session restart (if
+   any) comes now and not halfway through. Run
+   `python "${CLAUDE_PLUGIN_ROOT}/scripts/session_secrets.py" check` in the repo root. It
+   prints names only.
+   - `config` true, `stored` true, `vaults` exactly one, and every name in `env` also in
+     `in_this_session`: done, carry on.
+   - The same, but names missing from `in_this_session`: the setup happened after this
+     session started. Ask the user to start a new session and run adopt again, and stop.
+   - Otherwise the user stores the project's service account token once. What they need
+     first, in 1Password (say it in these words if they have not done it): a vault for
+     the project's development values; in it, an **API Credential** item for each agent
+     token, its title naming the service (`GitHub ...`, `Railway ...`; the GitHub token
+     fine-grained, this repository only: contents and pull requests read and write,
+     actions and commit statuses read, nothing else); and a **service account** with read
+     access to that vault only. Then open the setup in a terminal of its own, where the
+     token never passes through the session:
+     `cmd /c start "athena setup" python "${CLAUDE_PLUGIN_ROOT}/scripts/session_secrets.py" setup "<repo root>" --pause`
+     on Windows (elsewhere the user runs the same `python ... setup` in a terminal). The
+     user copies the token in 1Password and presses Enter there. Run `check` again: it
+     shows the vault and the variables it found. A missing variable: the user fixes the
+     item's type or title and runs the setup again. Then ask the user to start a new
+     session and run adopt again, and stop.
+   - The user has no service account yet and wants to adopt anyway: carry on without one.
+     The access package then sets it up, and its spec says how.
 
 ## 2. Survey (read only)
 
@@ -69,6 +93,7 @@ that writes. Never read `.env` files.
 | Backups | scheduled workflows, backup or dump scripts, the hosting config, the runbook | the "backup" safeguard row |
 | Claude settings | `.claude/settings.json`, `.claude/agents/`, `.claude/skills/` | the settings merge; names that could confuse |
 | The `/athena` shortcut | `~/.claude/skills/athena/SKILL.md` | step 6 |
+| The agent's credentials | `.claude/session-secrets.json`, `session_secrets.py check` (step 1.4) | the "identity" safeguard row and the access inventory: done when check shows the one vault |
 
 Decide which state the project is in: **new** (little or no code, no docs) or **existing**.
 For a new project every template applies. For an existing one, most decisions are a
@@ -178,12 +203,14 @@ branch. Writes go through the file tools, never a shell heredoc.
      on the main branch. The agent's database role owns the development
      database; in production it gets no role, or a read-only one on named schemas. In
      the secrets manager the agent gets **its own identity**: a 1Password service account
-     with read access to the `-dev` vaults only (one may serve every project's `-dev`
-     vault), or an Infisical machine identity with the Viewer role in a project without
-     production values. Its token stays in the user's password manager; a launcher
-     outside the repo puts it in the session's environment before the agent starts. The
-     agent's git host token is fine-grained, for this repository only, with no
-     administration, environments or deployments permission. The user keeps no CLI login
+     with read access to this project's `-dev` vault only, or an Infisical machine
+     identity with the Viewer role in a project without production values. Its token is
+     stored once with `session_secrets.py setup` (step 1.4; done already when adopt found
+     the service account), and the plugin's session-start hook loads the agent's tokens
+     from `.claude/session-secrets.json`. The agent's git host token is fine-grained, for
+     this repository only: contents and pull requests read and write, actions and commit
+     statuses read (the merge guard reads CI from them), and no administration,
+     environments or deployments permission. The user keeps no CLI login
      of the hosting platform and no admin session of the secrets manager on this
      machine. Real values leave every `.env` file. Its Verify steps prove the wall: each
      agent credential pointed at production is refused (a call that changes nothing even

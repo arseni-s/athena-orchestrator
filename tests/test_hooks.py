@@ -22,7 +22,11 @@ def commands(event: str) -> list[str]:
 
 class Registration(unittest.TestCase):
     def test_events_and_matchers(self) -> None:
-        self.assertEqual(sorted(HOOKS), ["PreToolUse", "Stop"])
+        self.assertEqual(sorted(HOOKS), ["PreToolUse", "SessionStart", "Stop"])
+        start = commands("SessionStart")
+        self.assertEqual(len(start), 1)
+        self.assertIn("session_secrets.py", start[0])
+        self.assertIn("|| echo", start[0])  # never blocks a session, even without Python
         by_gate = {gate: e["matcher"] for e in HOOKS["PreToolUse"] for h in e["hooks"]
                    for gate in ("destroy_gate", "ops_gate", "docs_gate") if f"{gate}.py" in h["command"]}
         self.assertEqual(by_gate, {
