@@ -15,6 +15,14 @@
 - Money is integer cents end to end. A float anywhere in a price path is a Blocker.
 - A cancelled booking frees the berth and never appears on the dock sheet.
 
+## Invariants
+- A quote is never negative, and in one season a longer stay never costs less than a
+  shorter one for the same boat.
+- Booking and then cancelling leaves the berth's availability as it was.
+
+## Rules from misses
+- A change to `pricing/` that adds a rate → the dock sheet total uses it too. (H6, D3)
+
 ## Cases to trace
 - Two requests for berth 12, same nights, arriving within the same millisecond.
 - A stay from 30 March to 2 April crossing the season change on 1 April.

@@ -56,7 +56,16 @@ security = [
 ]
 ux = ["harbormaster/templates/", "harbormaster/static/"]
 
+[verify]
+# Playwright for Python: a fixture starts the app on the local database, the tests steer a
+# browser through each flow in docs/FEATURES.md and print one line per flow ID, with the
+# failed step, a screenshot and a trace on a failure.
+e2e = ["uv run pytest e2e -q --tracing=retain-on-failure --screenshot=only-on-failure"]
+# The flows marked smoke in the feature map, against the development deployment (its URL
+# comes from PYTEST_BASE_URL, which the session loads).
+smoke = ["uv run pytest e2e -q -m smoke"]
+
 [docs]
-code = ["harbormaster/", "migrations/", "scripts/", ".claude/", "pyproject.toml", "Dockerfile"]
+code = ["harbormaster/","migrations/", "scripts/", ".claude/", "pyproject.toml", "Dockerfile"]
 docs = ["docs/**/*.md", "README.md", "CLAUDE.md", "AGENTS.md"]
 hint = "Update the matching docs/features/*.md file (a new area gets a new file and a line in docs/README.md)."

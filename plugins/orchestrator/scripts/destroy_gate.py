@@ -19,8 +19,9 @@ This gate denies what can reach production or what every environment shares:
            shell and PowerShell scripts, batch files, YAML, Makefile, justfile, Procfile,
            package.json, and any file starting with `#!`). Denied even with approval: the
            user runs it in their own terminal.
-    ask    Edits of the project profile (`.claude/orchestration/project.toml`) or of
-           `.claude/settings*.json`, so a session cannot quietly switch a gate off. In
+    ask    Edits of the project profile (anything in `.claude/orchestration/`: project.toml
+           and the lens files) or of `.claude/settings*.json`, so a session cannot quietly
+           switch a gate off or change the checks that judge its own package. In
            bypass-permissions mode an ask cannot reach the user, so it is denied instead.
 
 It is a text scan, not a shell parser, and independent of the other gates on purpose. The
@@ -173,8 +174,11 @@ SCRIPT_RUN_EXT = re.compile(r"\.(?:sh|bash|zsh|ksh|ps1)$")
 # code (an app that builds SQL, a test of a gate) does not, so it is not over-matched.
 SCRIPT_FILE = re.compile(
     r"\.(?:sh|bash|zsh|ksh|ps1|psm1|cmd|bat|ya?ml)$|(?:^|/)(?:makefile|justfile|procfile|package\.json)$")
-PROTECTED = (".claude/orchestration/project.toml", ".claude/settings.json", ".claude/settings.local.json")
-GATE_MENTION = re.compile(r"\.claude[\\/]+(?:settings|orchestration[\\/]+project\.toml)")
+# The profile is the whole `.claude/orchestration/` folder: project.toml and the lens files,
+# which are the checks a package is judged by, so a package must not change them unasked.
+PROTECTED = (".claude/settings.json", ".claude/settings.local.json")
+PROTECTED_DIR = "/.claude/orchestration/"
+GATE_MENTION = re.compile(r"\.claude[\\/]+(?:settings|orchestration[\\/])")
 SHELL_WRITE = re.compile(
     r">>?\s*(?!(?:/dev/null|\$null|nul)(?![\w/.]))[^\s>]"
     r"|" + word("set-content", "out-file", "add-content", "rm", "remove-item", "mv", "move-item",
@@ -393,7 +397,7 @@ def op_delete(seg: str) -> bool:
 def shell_asks(command: str) -> Optional[tuple[str, str]]:
     for seg in segments(strip(command).lower()):
         if GATE_MENTION.search(seg) and SHELL_WRITE.search(seg):
-            return "gate-edit", "changes the project profile or .claude/settings*.json from the shell"
+            return "gate-edit", "changes the project profile (its settings or lens files) or .claude/settings*.json from the shell"
     return None
 
 
@@ -423,8 +427,8 @@ def edit_verdict(tool: str, ti: dict) -> Verdict:
                 found = shell_denies(text, None)
                 if found:
                     return deny("write-script", f"writes a script that {found[1]} ({found[0]})")
-    if any(p.endswith("/" + t) or p == t for t in PROTECTED):
-        return ask("gate-edit", "edits the project profile or .claude/settings*.json")
+    if PROTECTED_DIR in "/" + p or any(p.endswith("/" + t) or p == t for t in PROTECTED):
+        return ask("gate-edit", "edits the project profile (its settings or lens files) or .claude/settings*.json")
     return None
 
 

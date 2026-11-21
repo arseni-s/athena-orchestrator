@@ -77,6 +77,15 @@ The model removes the first bottleneck and guards against the second:
     from merges they approved. Development must rebuild from scratch with one command, so
     damage there costs minutes. Secrets are injected at runtime and never visible in the
     session, and every credential is scoped to this one project. Details in section 12.
+14. **Done means it ran.** A package that changes what the product does is done only when
+    the running product did it: an end-to-end run starts the product and takes each flow
+    in the feature map through its real entry point, and after the merge a smoke run
+    checks development. Unit tests can pass while the feature is broken, and the human,
+    who reads a summary instead of the diff, deserves evidence that it works. Section 4.1.
+15. **A package cannot change what judges it.** Reviewers read the spec, the lens files,
+    the hard rules and the feature map as they are on the main branch; the gates and the
+    agents live in the plugin, out of the package's reach; and the profile's files change
+    only with the human's word.
 
 ---
 
@@ -130,12 +139,13 @@ lenses, and the verifier. Lenses that work through a checklist can run on a chea
 |---|---|---|
 | `CLAUDE.md` / `AGENTS.md` | Hard rules, conventions, gotchas. Loaded by every session. Keep the two byte-identical if both exist. | human |
 | `docs/IMPLEMENTATION_PLAN.md` | **The only place status lives.** Status table (ID, package, owner, depends on, target, status), open questions with safe defaults, the **follow-up register**. | orchestrator updates status |
-| `docs/work/<ID>-<slug>.md` | One spec per work package: goal, scope, **Verify steps** (runnable), docs to update, ADRs that apply. | human / planning session |
+| `docs/work/<ID>-<slug>.md` | One spec per work package: goal, scope, the feature-map flows it adds or changes (**End to end**), **Verify steps** (runnable), docs to update, ADRs that apply. | human / planning session |
+| `docs/FEATURES.md` | The **feature map**: every user flow, in the user's words, with its steps, its expected result, and whether it is a smoke flow. The end-to-end run follows it and is graded against it. | implementer adds rows; an expected result changes only when a spec asks |
 | `docs/decisions/NNNN-*.md` | ADRs: accepted, binding, never re-opened except by a new ADR that supersedes. | human accepts |
 | `docs/decisions/log/<ID>.md` + index | Decision log, one file per package. | orchestrator |
 | `docs/PROCESS.md` | The human-readable process: panels, rubric, merge conditions, approval list. | human |
 | `.claude/orchestration/project.toml` | The **profile**: gate commands, panel paths, environments ([PROFILE.md](PROFILE.md)). | human |
-| `.claude/orchestration/lenses/*.md` | What each lens means in this project: sources of truth, checks, cases to trace. | human |
+| `.claude/orchestration/lenses/*.md` | What each lens means in this project: sources of truth, checks, invariants, rules from misses, cases to trace. | human |
 | `.claude/rules/*.md` | Path-scoped rules (frontmatter `paths:`), loaded when matching files are touched. | human |
 
 The orchestrator skill, the agent files and the gate hooks are not in the project: they
@@ -184,7 +194,8 @@ profile and its own documents.
 4. Note the follow-up register rows whose target package is done but which are still
    open, and the `unscheduled` rows, for the session report.
 5. **Pick** the given ID, or the first `todo` row whose dependencies are done. Never pick
-   rows owned by the human.
+   rows owned by the human. While the project has no end-to-end harness, skip packages
+   that change what the product does: they wait for the package that builds it (4.1).
 
 **Per package**
 1. **Claim**: create a fresh worktree from the main branch, commit `in progress (date,
@@ -194,8 +205,14 @@ profile and its own documents.
    writes a plan in `plan-only` mode, and the spec and correctness reviewers check it
    before any code is written. Approve it, or send it back once.
 3. **Implement**: brief the implementer (section 7).
-4. **Gates**: the orchestrator runs the gate commands and every automatable Verify step
-   itself. A failure goes back to the implementer and counts as a round.
+4. **Gates**: the orchestrator runs the gate commands, the **end-to-end run** (4.1) and
+   every automatable Verify step itself. A failure goes back to the implementer and
+   counts as a round. A check that fails and then passes on a re-run is **flaky, not
+   green**: it goes back as a Major finding, fixed at its cause (no sleeps, retries or
+   re-runs until green). The orchestrator also lists any change to the checks that judge
+   the package (the profile, lens files, hard rules, `.claude/rules/`, the spec, existing
+   feature-map rows): each is flagged for review, and one the spec did not ask for goes
+   back as a Major finding.
 5. **Panel**: choose its size (section 5) and log the choice in one line. Dispatch all
    reviewers **in one message, in parallel**.
 6. **Verify findings**: send the Blocker and Major findings to the verifier, except when:
@@ -217,8 +234,10 @@ profile and its own documents.
    #n)`, and update the follow-up register. Commit all of it **in the same commit as the
    code**, so the code and its reasoning land together.
 10. **Approval**: present the package's **approval summary** to the human: what changed
-    (in behaviour, not files), how it was checked (gates, Verify, panel and findings), the
-    flagged decisions, the questions that need the human, the follow-ups. Then wait. A
+    (in behaviour, not files), the flows **seen working** in the end-to-end run with
+    their evidence, how it was checked (gates, Verify, panel and findings), any change to
+    the checks, the flagged decisions, the rules proposed from misses, the questions that
+    need the human, the follow-ups. Then wait. A
     question is answered; a requested change goes back to the implementer as a fix round
     (outside the round cap, since the human chose it) and the summary is presented again.
     Meanwhile the orchestrator may carry on with packages that do not depend on this one,
@@ -227,10 +246,60 @@ profile and its own documents.
     branch, re-run the gates, check every merge condition, then squash-merge (never
     auto-merge), wait for CI, and never work around the guard. Check that the merge
     landed on the main branch, remove the worktree and record the squash SHA.
+12. **Smoke in development**: once the merge has deployed to development, run the smoke
+    flows there. A failure is a `miss`: it stops the session, as a red main branch does,
+    and the human is offered a revert or a fix package.
 
 **Session end**: one-screen report covering the packages waiting for approval (their
-summaries in full), what was merged, blocked and in progress; the flagged decisions with
-links; status corrections; open follow-ups; and what the human must do next.
+summaries in full), what was merged (with its smoke result), blocked and in progress; the
+flagged decisions with links; misses and the rules proposed for them; status corrections;
+open follow-ups; and what the human must do next.
+
+### 4.1 Done means it ran
+
+Reading code and running unit tests are the weakest evidence that a feature works: the
+unit tests can pass while the feature, put together, is broken, and neither the agent nor
+the test sees the whole task. The human reads a summary, not the diff, so the summary
+must carry stronger evidence: the product, running, doing the thing.
+
+- **The feature map** (`verify.features`, default `docs/FEATURES.md`) lists every flow a
+  user can do, in the user's words, with its steps (entry point, actions, selectors or
+  inputs), its expected result (what the user sees, what is stored), and whether it is a
+  **smoke** flow. It is the guide and the grading rubric for the run.
+- **The end-to-end run** (`verify.e2e`) is one or more commands that start the product
+  (against local services or development) and take every `active` flow through its real
+  entry point: a browser for a web interface, requests to the running service for an
+  API, the built binary for a command-line tool. It prints one result line per flow ID,
+  and on a failure the step that failed and its evidence (a screenshot or trace, or the
+  request and response), so a failure says what broke rather than "timeout after 30
+  seconds". It waits for conditions, never fixed times, and stays fast enough to run on
+  every package.
+- **Each spec** names the flows the package adds or changes ("End to end"), or says
+  "none" with a reason for a change the user cannot notice (CI, docs, tooling).
+- **The implementer** adds or updates those rows and their end-to-end tests, runs the
+  product and looks at the result itself.
+- **The orchestrator** runs the whole end-to-end run at the gates (step 4) and again after
+  the final rebase; every flow the spec names must appear and pass. The PR and the
+  approval summary carry the per-flow results ("Seen working"), with the evidence for a
+  new or changed flow.
+- **After the merge**, the smoke flows run against development (`verify.smoke`, step
+  12). Only then is the package done.
+- **The UX lens** uses the running product too: it walks each changed flow at the sizes
+  its lens file names and judges what a test cannot, whether the screen makes sense.
+- **No harness yet** (`verify.e2e` empty): `adopt` seeds an "end-to-end harness" package
+  as the orchestrator's first, and packages that change what the product does depend on
+  it. Packages the user cannot notice (access, backup, safeguards, docs tests) run before
+  it.
+- **Tests that are hard to fool, beside it**: an invariant named in the correctness lens
+  file is a property test (generated inputs try to break it), and a rewrite or migration
+  that must keep behaviour gets a differential test (old and new code on the same
+  inputs, with the approved differences listed). Their edge cases do not share the bias
+  of the agent that wrote the code.
+
+Once the run is part of CI's required check, the merge guard enforces it too; until then
+the orchestrator's own run, re-done after the rebase, is the check. The agent has full
+control of development (section 12), so starting, resetting and reseeding it for a run
+needs nobody's approval.
 
 ---
 
@@ -259,6 +328,10 @@ links; status corrections; open follow-ups; and what the human must do next.
   behaviour without docs.
 - **Minor**: real, but unlikely or cheap to fix later.
 - **Nit**: style or naming. At most 3 per reviewer, and never blocking.
+- **Pre-existing** is not a severity but a mark: a problem the diff neither introduced nor
+  made worse keeps its severity, never blocks the package, and becomes a follow-up. A
+  pre-existing Blocker or Major is flagged for the human. Validity (the verifier's
+  verdict), severity and origin are three separate questions.
 
 **Every finding** has `id`, `severity`, `file:line`, `claim` (one sentence), `scenario`
 (the concrete inputs or state that lead to the wrong outcome), `evidence` (what was read
@@ -278,6 +351,14 @@ anything an accepted ADR already decided.
   rewrites the logic the findings were in, the owning lens re-reviews the **whole** diff.
   A rewrite can introduce a new bug that a fix-only check would miss.
 - A reviewer may re-raise a dismissed finding only with **new evidence**.
+- **A review counts for one commit.** Each report names the commit it reviewed
+  (`REVIEWED`); a report on any other commit than the head the orchestrator sent is stale,
+  and that lens runs again.
+- **The checks come from the main branch.** Reviewers and the verifier read the profile,
+  the lens files, the spec, the hard rules, `.claude/rules/` and the feature map as they
+  are on the main branch (`git show origin/<main>:<path>`), not from the package's
+  worktree, so a package cannot loosen what judges it. A file new in the package (a new
+  spec) is read from the worktree, and the report says so.
 
 ### 5.4 Reviewer budget and safety
 
@@ -329,14 +410,22 @@ Give each subagent everything it needs and nothing it does not.
 **Implementer brief**: package ID, spec path, repo, worktree, branch; the mode
 (`plan-only` | `implement` | `fix round N`); for a fix round, **the findings verbatim and
 nothing else**; binding decisions already made; the open follow-up rows (which are in
-scope); the gate commands to run before reporting.
+scope); the gate commands and the end-to-end commands to run before reporting, and the
+flows the spec names.
 
 **Implementer rules** (in its agent file):
 - Check that it is in the right worktree and branch. Read the hard rules, the spec, the
   matching path rules and the listed ADRs. Copy existing patterns.
-- Write tests first for critical behaviour.
+- Write tests first for critical behaviour. For each flow the spec names, add or update
+  its feature-map row and its end-to-end test, run the product and look at the result
+  (4.1). Invariants get property tests; behaviour-keeping rewrites get differential tests.
 - **Never** weaken, skip, focus or delete a test to get green. Never edit expected values
   without proving the new ones are right. Never fake or paraphrase Verify output.
+- A flaky test is fixed at its cause: no sleeps, raised timeouts, retries or re-runs
+  until green. If the cause cannot be found, it stops and reports: skipping or deleting
+  the test is the human's call.
+- It does not change what judges the package (the profile, lens files, hard rules, path
+  rules, the spec, an existing feature-map row's expected result) unless the spec asks.
 - In a fix round, fix exactly the findings with the smallest change. If it thinks a
   finding is wrong, it does not fix it and explains why, with evidence.
 - No new dependency unless the spec needs one. No prod access. No heredoc file writes.
@@ -351,14 +440,17 @@ CHANGES: <file, what, why>
 TESTS ADDED/CHANGED: <for any changed existing test, why the old expectation was wrong>
 GATES: <each gate command + final summary lines, verbatim>
 VERIFY: <each Verify step + real output, verbatim, trimmed>
+E2E: <each end-to-end command + per-flow result lines, verbatim; evidence for changed flows>
+FEATURE MAP: <rows added or updated, or none>
 DECISIONS: <each choice the spec did not dictate: what, why, alternative>
 FINDINGS NOT FIXED: <id: reason with evidence>   (fix rounds)
 NEW DEPENDENCIES: <or none>
 FOLLOW-UPS: <or none>
 ```
 
-**Reviewer brief**: repo, worktree, diff range (`origin/<main>...HEAD`), spec path,
-changed files; round, panel and mode (`full` | `fix-confirm`); in `fix-confirm`, the
+**Reviewer brief**: repo, worktree, diff range (`origin/<main>...HEAD`) and the head
+commit to review, spec path, changed files, the end-to-end run's per-flow results (for
+the tests, combined and UX lenses); round, panel and mode (`full` | `fix-confirm`); in `fix-confirm`, the
 fixed findings verbatim and the fix-round range; in a later `full` review, the earlier
 findings in its lens with their resolutions; and **the budget and safety line in every
 brief**.
@@ -366,6 +458,7 @@ brief**.
 **Reviewer report**:
 ```
 LENS: <name>
+REVIEWED: <the commit reviewed>
 VERDICT: approve | changes required
 FINDINGS:
 - id: <LENS>-1
@@ -394,7 +487,8 @@ waits:
 - accepting, changing or superseding an ADR (drafting one as `Proposed` is fine);
 - changing a hard rule or the profile;
 - **weakening a gate**: hooks, CI, branch protection, skipping or deleting tests,
-  bypassing the docs gate;
+  removing a flow from the end-to-end run or loosening its expected result, bypassing
+  the docs gate;
 - **weakening a safeguard** (section 12.6): switching off or bypassing the package
   manager's release-age or install-script setting, the secret scan, or the backup job;
 - cutting a package from scope;
@@ -443,8 +537,11 @@ The orchestrator merges only when **all** of these hold:
 - the gates are green (CI on the PR head commit; until CI exists, gates re-run by the
   orchestrator with output in the PR);
 - the Verify steps were run, and their real output is in the PR;
+- the end-to-end run passed on the final head, after the rebase, with every flow the spec
+  names in it, and its per-flow output is in the PR (exempt: a docs-only diff, or a spec
+  whose "End to end" says none, with a reason);
 - no confirmed Blocker or Major is open;
-- docs are updated (the docs gate passes);
+- docs are updated (the docs gate passes), the feature map included;
 - the branch is rebased on the current main branch, with gates re-run after the rebase;
 - the decision log is written and linked, and the follow-up register is updated;
 - the PR body follows the template;
@@ -457,6 +554,7 @@ Spec: <link> · Decision log: <link>
 
 ### What changed        <3–6 bullets>
 ### Verify (real output)  <command + trimmed output per step>
+### End to end (real output)  <command + one line per flow; evidence for changed flows>
 ### Gates               <commands + result lines, as re-run by the orchestrator>
 ### Review panel
 | Lens | Round(s) | Blocker | Major | Minor | Outcome |
@@ -464,9 +562,11 @@ Spec: <link> · Decision log: <link>
 ### Follow-ups          <or "none">
 ```
 
-**Definition of done**: gates green, Verify run with real output in the PR, docs updated,
-no open Blocker or Major, decision log written, approved by the human, squash-merged, and
-deployed to development. Production waits for the human (section 12.3, rule 5).
+**Definition of done**: gates green, Verify run with real output in the PR, the
+end-to-end run passed on the running product with the package's flows in it, docs and the
+feature map updated, no open Blocker or Major, decision log written, approved by the
+human, squash-merged, deployed to development, and the smoke flows passed there.
+Production waits for the human (section 12.3, rule 5).
 
 ---
 
@@ -481,7 +581,7 @@ deployed to development. Production waits for the human (section 12.3, rule 5).
 ## Decisions
 ### D1: <title>
 - **Kind**: default chosen | finding dismissed | finding deferred | spec deviation |
-  scope cut | status correction | stop | access | other
+  scope cut | status correction | stop | access | miss | other
 - **Decision** / **Why** (name the ladder rung) / **Alternatives**
 - **Revise by**: the setting, file, or commit to change
 - **Flag**: review | none
@@ -494,6 +594,20 @@ first.
 
 ADRs hold architecture-level decisions. The log holds execution-level ones. Do not mix
 them.
+
+**Misses become rules.** A `miss` is something the panel and the end-to-end run let
+through and someone caught later: a bug the human asks to fix at approval (not a
+preference or a scope change), a smoke failure in development, a merged package that is
+reverted. Each is a signal about the checks, and the log keeps it: what was missed, which
+lens or flow should have caught it, and a **proposed rule**, either a lens-file item in
+"Rules from misses" (a trigger readable from a diff, the check, and this entry as its
+source) or a new feature-map flow. Lens files are the profile, so the rule goes in only
+on the human's word; the approval summary and the session report list the proposals.
+Over time this grows each project's own checklist of past failures, run only when a
+diff wakes an item, so nobody has to remember the old incidents. Rule files only grow if
+nobody prunes them: past about 40 lines, items are merged or retired, on the human's
+word. With enough packages behind it, the same log measures the panel itself: misses per
+lens, findings the verifier refuted, rounds per package.
 
 **Follow-up register**: one table in the plan. It is the only place open follow-ups are
 tracked, each with a **target package** or `unscheduled`. Per-package logs mention
@@ -524,7 +638,7 @@ the human leaves bypass mode to approve the call, or does it by hand.
 |---|---|---|
 | **Docs gate** | PreToolUse + Stop hook | A commit or a session end with behaviour changes but no doc changes is blocked (explicit, reviewable opt-out marker only). |
 | **Docs tests** | test suite | Indexes list every doc, links resolve, mirrored files are byte-identical, every ADR is indexed. |
-| **Destroy gate** | PreToolUse hook on shell, edit and MCP tools | The destructive actions whose reach spans environments are denied (the list is in section 12.2, layer 5): the platform project or an environment, the repository, the main branch, the secrets manager. Destruction inside development is allowed. Edits to the profile or the agent settings ask first, so a session cannot switch a gate off by itself. Needs no configuration. |
+| **Destroy gate** | PreToolUse hook on shell, edit and MCP tools | The destructive actions whose reach spans environments are denied (the list is in section 12.2, layer 5): the platform project or an environment, the repository, the main branch, the secrets manager. Destruction inside development is allowed. Edits to the profile (`project.toml` and the lens files) or the agent settings ask first, so a session cannot switch a gate off, or loosen the checks on its own package, by itself. Needs no configuration. |
 | **Ops gate** | PreToolUse hook on shell tools | Deploys and platform commands run (the agent's credentials reach development only). A merge without green checks, or a direct push to the main branch → deny (the merge guard). Commands that print secrets → deny, including the secrets manager's own listing and export commands and whatever an injector runs (`op run -- printenv`, `infisical run -- printenv`); commands it cannot read well enough to rule out a hidden merge or push → ask. |
 | **Merge guard** | the same hook | `merge` is denied unless every check on the PR head passed; auto-merge is denied; direct pushes to main are denied. It also covers **aliases, extensions and API endpoints** that reach the same action, and non-built-in subcommands go to the human. |
 | **CI** | the CI provider | Lint, build, tests, docs tests and boundary tests on every PR; actions pinned to SHAs. |
@@ -623,8 +737,9 @@ reaches; the rest are on the agent's machine.
    is injected at runtime), and it does not need to: layer 1 makes everything the agent
    can reach development.
 
-   It also asks before any edit to the profile or the agent settings, so a session cannot
-   switch a gate off by itself.
+   It also asks before any edit to the profile (`project.toml` and the lens files) or the
+   agent settings, so a session cannot switch a gate off, or loosen the checks on its own
+   package, by itself.
 6. **The ops gate.** It denies commands that print secrets, and asks before a command that
    changes a secret or switches the secrets manager's login. The merge guard denies a
    merge until every check on the PR passed, and a direct push to the main branch.
@@ -904,7 +1019,8 @@ more common threats for less. A project that needs more adds them: [BROKER.md](B
 lens per reviewer; the verifier and its CONFIRMED/REFUTED/UNCERTAIN rules; the severity
 scale and finding format; fix-only rounds with the large-diff escalation; the 3-round
 cap; the decision ladder; the decision log with Revise-by; the follow-up register;
-squash-per-package; the escalation list; reviewer safety; fail-closed gates.
+squash-per-package; the escalation list; reviewer safety; fail-closed gates; done means
+it ran (4.1); checks read from the main branch; misses become rules.
 
 **Tailor (fill these in per project)**. The answers go in the project profile: settings
 in `project.toml`, lens knowledge in `lenses/*.md`, hard rules in `CLAUDE.md`.
@@ -920,6 +1036,7 @@ in `project.toml`, lens knowledge in `lenses/*.md`, hard rules in `CLAUDE.md`.
 | Full-panel IDs and paths | Which packages and directories hold the code where a bug is visible or loses data? |
 | Path triggers | Which paths wake ops and security on the light panel? |
 | Gate commands | The exact install, lint, build, test and boundary-check commands. |
+| End to end | What do users come to do (the feature map's flows)? Which command starts the product and runs them through the real entry point, and which few prove a development deployment is alive (smoke)? Which invariants deserve property tests? |
 | Environments | Which environments are development (the agent's)? What counts as production, and how does the human deploy it by hand? Which command rebuilds development? |
 | Model tiers | Which roles get the strongest model? Keep the verifier strong. |
 | Budgets | Tool-call budgets and the heavy tools each lens may use. |
@@ -945,7 +1062,10 @@ orchestrator exists):
    environments, the docs gate patterns and the lens files. The plugin's gates enforce
    what the profile sets.
 4. Docs tests; CI with the gate commands and a check named as `merge.required_check`;
-   boundary tests.
+   boundary tests. The **end-to-end harness** and the feature map (4.1): the command that
+   starts the product and runs its flows, set as `verify.e2e`, its smoke subset as
+   `verify.smoke`, and the run in CI where the product can start there. Packages that
+   change what the product does wait for it.
 5. PR template, `PROCESS.md`, and the decision log README with its template. Accept an
    ADR that grants the orchestrator its authority: to merge each package once the human
    approves it, and to have full control of the development environments.
@@ -958,8 +1078,9 @@ The plugin's `adopt` skill (`/athena-orchestrator:adopt`) does steps 1, 3 and 5,
 step 4, from templates. It maps what an existing project already has instead of
 overwriting it, asks once for what it cannot infer, and writes nothing before the user
 approves its mapping. Its survey also records which safeguards (12.6) the project already
-has. The rest of the bootstrap (access, the backup, the dependency settings and secret
-scan, the docs and boundary tests, the event table) it puts in the plan as the first work
+has, and whether an end-to-end harness exists. The rest of the bootstrap (access, the
+backup, the dependency settings and secret scan, the end-to-end harness, the docs and
+boundary tests, the event table) it puts in the plan as the first work
 packages, so the orchestrator does them; access and the backup are owned by the human. The user's approval of the mapping is the review:
 `adopt` then lands its one commit on the main branch itself (a fast-forward without a
 remote, a PR merged through CI and the merge guard with one), and the same approval
@@ -1033,6 +1154,23 @@ Each rule above exists because something went wrong without it:
   the line between environments instead of in time: full control of development, a
   wall of credentials around production, and a one-command rebuild that makes damage in
   development cheap (section 12).
+
+- **Published practice, not ours, shaped the end-to-end rule** (21 Nov 2026). The Claude
+  Code team's account of how it verifies agent-written code (16 Nov 2026) matched this
+  model's shape: separate graders against a rubric, a three-round cap before a human,
+  rounds that build on each other, the human reviewing evidence instead of diffs. It also
+  showed what was missing here: the model checked work by reading it and running unit
+  tests, almost never by running the product, while that team calls running the change
+  end to end more important than tests. This led to the feature map, the end-to-end run
+  as part of done and the smoke run after each merge (4.1), reviewers reading the checks
+  from the main branch, lens files behind the destroy gate's ask, a review tied to its
+  commit, the pre-existing mark, the flaky-test rule, property and differential tests,
+  and misses turned into lens rules. Two of its practices were left out on purpose: a gate
+  that starts in observe mode and lets a commit through after two blocks (these gates
+  guard against damage that cannot be undone, and an ask already slips through in
+  bypass mode, section 11), and one tuned reviewer in place of a panel (that team's own
+  pipeline uses several finders and a verification stage; the lesson kept is to measure
+  each lens before adding another).
 
 When something new goes wrong, follow the same pattern. Record the incident in the
 package log, change the rule in PROCESS.md, the skill and the agent files in one PR, and

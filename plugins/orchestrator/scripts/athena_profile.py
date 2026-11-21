@@ -27,6 +27,7 @@ KNOWN = {
     "panel": {"full"},
     "paths": {"full_panel", "design_review", "ops", "security", "ux"},
     "docs": {"code", "docs", "hint"},
+    "verify": {"e2e", "smoke", "features"},
 }
 
 
@@ -124,6 +125,7 @@ def check(raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     project, repo = c.table("project"), c.table("repo")
     plan, rubric, deploy = c.table("plan", False), c.table("rubric"), c.table("deploy")
     merge, panel, paths, docs = c.table("merge"), c.table("panel", False), c.table("paths", False), c.table("docs")
+    verify = c.table("verify", False)
     data: dict[str, Any] = {"schema": SCHEMA}
     data["project"] = {"name": c.get(project, "name", str, "project", nonempty=True),
                        "summary": c.get(project, "summary", str, "project", nonempty=True)}
@@ -152,6 +154,11 @@ def check(raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     data["docs"] = {"code": c.get(docs, "code", list, "docs", nonempty=True),
                     "docs": c.get(docs, "docs", list, "docs", nonempty=True),
                     "hint": c.get(docs, "hint", str, "docs", "")}
+    # Empty `e2e` means the project has no end-to-end harness yet: packages that change what
+    # the product does wait for the package that builds it (docs/MODEL.md section 4.1).
+    data["verify"] = {"e2e": c.get(verify, "e2e", list, "verify", []),
+                      "smoke": c.get(verify, "smoke", list, "verify", []),
+                      "features": c.get(verify, "features", str, "verify", "docs/FEATURES.md", nonempty=True)}
     return data, c.problems
 
 

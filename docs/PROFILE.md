@@ -119,6 +119,19 @@ is blocked.
 | `docs` | list of patterns | — | Paths that count as documentation. A path matching both is docs. |
 | `hint` | string | `""` | Where docs for a change belong, appended to the gate's message. |
 
+### `[verify]`
+
+End-to-end verification ([MODEL.md](MODEL.md) section 4.1). All optional.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `e2e` | list of strings | `[]` | Commands that start the product and run every `active` flow in the feature map through its real entry point (a browser, requests to the running service, the built binary), printing one result line per flow ID and, on a failure, the step and its evidence. The orchestrator runs them at the gates and again after the rebase; a package that changes what the product does is done only when they pass. **Empty means the project has no harness yet**: such packages wait for the package that builds it. |
+| `smoke` | list of strings | `[]` | Commands that run the feature map's `smoke` flows against the development deployment, after each merge has deployed there. A failure stops the session. Empty: development is not checked after a merge, and the session report says so. |
+| `features` | string | `docs/FEATURES.md` | The feature map: every user flow, in the user's words, with its steps, its expected result and whether it is a smoke flow. The guide and grading rubric for the run. |
+
+The commands play the part of a `verify` skill: they live in the profile, so the
+orchestrator runs them itself rather than trusting a subagent's account of them.
+
 A complete profile is in
 [examples/sample-profile/](../examples/sample-profile/.claude/orchestration/project.toml).
 
@@ -143,6 +156,10 @@ Each subagent reads `lenses/<agent>.md` if it exists, after its own instructions
 plugin. The file says what that lens means **in this project**: the sources of truth,
 what to check, which concrete cases to trace. It never changes the rubric, the report
 format, the budget or the safety rules, which belong to the engine.
+
+Lens files are checks that judge every package, so a package must not change them:
+reviewers read them as they are on the main branch, and the destroy gate asks the user
+before any edit under `.claude/orchestration/`, as it does for `project.toml`.
 
 | File | Read by | Required |
 |---|---|---|
@@ -171,6 +188,16 @@ Files the reviewer reads before judging (ADRs, rule files, contracts).
 ## Check
 Project-specific checks, one bullet each. Name the severity when it is not obvious.
 
+## Invariants
+Rules that hold for every input (round trip, never negative, idempotent, the same answer
+as the old code). Each is a property test. Mostly correctness.
+
+## Rules from misses
+One item per thing a review missed and the user or development caught:
+`<trigger: what in a diff wakes it> → <the check>. (<package ID, log entry>)`. A reviewer
+applies an item only when its trigger matches the diff. Proposed by the orchestrator from
+a `miss` log entry, added on the user's word.
+
 ## Cases to trace
 Concrete adversarial inputs (correctness), failures (reliability), users and tasks (ux).
 
@@ -179,13 +206,16 @@ What this lens may run beyond reading and tests, and only for what (for example,
 throwaway local database to check SQL). Omit to allow none.
 ```
 
+When a file grows past about 40 lines, merge or retire items, on the user's word: rule
+files only grow if nobody prunes them.
+
 ---
 
 ## 4. The gates and the profile
 
 | Gate | Needs the profile? | What it does |
 |---|---|---|
-| **Destroy gate** | no | Denies the destructive actions that reach beyond development (MODEL.md section 12.2, layer 5, has the list). Asks before any edit to `project.toml` or `.claude/settings*.json`. |
+| **Destroy gate** | no | Denies the destructive actions that reach beyond development (MODEL.md section 12.2, layer 5, has the list). Asks before any edit under `.claude/orchestration/` (`project.toml` and the lens files) or to `.claude/settings*.json`. |
 | **Ops gate and merge guard** | yes | The merge guard, secret-printing denials (the 1Password and Infisical CLIs' own commands, and whatever `op run`, `infisical run` or `railway run` runs, included). |
 | **Docs gate** | yes | `[docs]`. |
 
@@ -258,3 +288,5 @@ second, unrelated project use it unchanged?
 | Budgets (15 / 25 tool calls, 300 words), round cap 3, ~100-line escalation | engine | invariant core |
 | Escalation list, stop conditions, ladder, severity scale, report formats, log template, PR body | engine | invariant core |
 | Hook timeouts (30 s ops, 15 s docs, 12 s guard, 10 s destroy) | engine | unchanged |
+| How the product is started and its flows run end to end, and which flows prove a deployment is alive | profile | `[verify]`; the flows themselves in the feature map; the rule that a product change is done only when it ran is engine |
+| Project invariants, and rules learned from misses | profile | lens files' "Invariants" and "Rules from misses"; the rule that a miss proposes a lens item is engine |

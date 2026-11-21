@@ -60,6 +60,17 @@ wherever it differs:
   plugin's SessionStart hook loads the variables; the merge guard reads `GH_TOKEN` itself,
   and reads CI from Actions jobs when a fine-grained token cannot read check runs. This
   replaced a launcher, which left an editor opened any other way without tokens.
+- **Done means it ran (21 Nov 2026)**, MODEL.md section 4.1. A package that changes what
+  the product does is done only when the running product did it: `verify.e2e` starts the
+  product and runs every flow in the feature map (`docs/FEATURES.md`) at the gates and
+  after the rebase, and `verify.smoke` checks development after each merge. Until a
+  project has a harness, `adopt` seeds an "end-to-end harness" package and product
+  packages wait for it. With it: reviewers read the spec, lens files, hard rules and
+  feature map from the main branch, lens files sit behind the destroy gate's ask, each
+  review names the commit it read, a pre-existing problem never blocks, flaky tests are
+  fixed at the cause, invariants get property tests, and a `miss` proposes a lens rule.
+  From an article on how the Claude Code team verifies; its observe-mode gate with a
+  two-block escape and its single tuned reviewer were left out on purpose (MODEL.md 14).
 - **The broker** ([docs/BROKER.md](docs/BROKER.md)) is a design note. Build it when a
   project needs it.
 - The reliability and UX lenses are general; a project's specifics go in its lens files.
@@ -92,8 +103,8 @@ default path. Run 2, a real session, showed that **in bypass-permissions mode a 
 that mode; it also found the destroy gate missed a delete written into a script and then
 run, now closed. Run 3 ran `adopt` and `/athena` end to end in a real session on a
 throwaway local repo; both passed, up to the PR step that needs a remote. Not yet
-trialled: the PR, CI and merge path and a fix round, which wait for a real project, and
-the dev/prod split of 19 Nov 2026.
+trialled: the PR, CI and merge path and a fix round, which wait for a real project, the
+dev/prod split of 19 Nov 2026, and the end-to-end run and smoke check of 21 Nov 2026.
 
 ## Hard rules
 
