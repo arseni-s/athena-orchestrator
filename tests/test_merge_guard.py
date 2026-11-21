@@ -308,5 +308,55 @@ class EndToEnd(unittest.TestCase):
             tmp.cleanup()
 
 
+SHA = "0123456789abcdef0123456789abcdef01234567"
+RUNS = f"repos/{{owner}}/{{repo}}/actions/runs?head_sha={SHA}&per_page=100"
+STATUS = f"repos/{{owner}}/{{repo}}/commits/{SHA}/status"
+
+
+class FineGrainedToken(Base):
+    """A fine-grained token cannot read check runs; the guard rebuilds them from Actions jobs."""
+
+    def gh(self, jobs: list[dict], statuses: Optional[list] = None, runs_exit: int = 0) -> tuple:
+        return self.fakes.make([
+            {"match": "number,headRefOid,statusCheckRollup", "exit": 1,
+             "stderr": "GraphQL: Resource not accessible by personal access token (repository.pullRequest)\n"},
+            {"match": "number,headRefOid", "stdout": json.dumps({"number": 5, "headRefOid": SHA})},
+            {"match": RUNS, "exit": runs_exit, "stdout": json.dumps({"workflow_runs": [{"id": 77}]}),
+             "stderr": "HTTP 403\n" if runs_exit else ""},
+            {"match": "repos/{owner}/{repo}/actions/runs/77/jobs?per_page=100", "stdout": json.dumps({"jobs": jobs})},
+            {"match": STATUS, "stdout": json.dumps({"statuses": statuses or []})},
+        ])
+
+    def test_green_jobs_allow_the_merge(self) -> None:
+        gh, calls = self.gh([{"name": "ci", "status": "completed", "conclusion": "success"},
+                             {"name": "lint", "status": "completed", "conclusion": "skipped"}],
+                            [{"context": "docs", "state": "success"}])
+        self.assertEqual(self.decide(bash(MERGE), gh=gh)[0], "none")
+        self.assertEqual([c[:2] for c in calls()], [["pr", "view"], ["pr", "view"], ["api", RUNS],
+                                                   ["api", "repos/{owner}/{repo}/actions/runs/77/jobs?per_page=100"],
+                                                   ["api", STATUS]])
+
+    def test_red_or_running_jobs_deny(self) -> None:
+        for label, jobs, why in [
+            ("red", [{"name": "ci", "status": "completed", "conclusion": "failure"}], r"failing checks: ci \(failure\)"),
+            ("running", [{"name": "ci", "status": "in_progress", "conclusion": None}], r"still running: ci"),
+            ("no ci job", [{"name": "lint", "status": "completed", "conclusion": "success"}], r"no check named ci"),
+        ]:
+            with self.subTest(label):
+                d, reason = self.decide(bash(MERGE), gh=self.gh(jobs)[0])
+                self.assertEqual(d, "deny")
+                self.assertRegex(reason, why)
+
+    def test_a_failing_status_denies(self) -> None:
+        gh = self.gh([{"name": "ci", "status": "completed", "conclusion": "success"}],
+                     [{"context": "deploy", "state": "failure"}])[0]
+        self.assertRegex(self.decide(bash(MERGE), gh=gh)[1], r"failing checks: deploy \(failure\)")
+
+    def test_actions_unreadable_fails_closed(self) -> None:
+        d, reason = self.decide(bash(MERGE), gh=self.gh([], runs_exit=1)[0])
+        self.assertEqual(d, "deny")
+        self.assertIn("then from GitHub Actions: gh api actions/runs exited 1", reason)
+
+
 if __name__ == "__main__":
     unittest.main()

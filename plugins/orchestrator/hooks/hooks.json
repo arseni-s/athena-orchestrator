@@ -1,6 +1,18 @@
 {
-  "description": "athena-orchestrator gates: the destroy gate, the ops gate with the merge guard, and the docs gate. Each command falls back to asking (or, at a stop, a warning) when the gate cannot run, so a missing Python never waves a command through. In bypass-permissions mode, where a question cannot reach the user, the fallback denies instead.",
+  "description": "athena-orchestrator hooks: at session start, the loader of the project's development tokens (session_secrets.py, never blocks); then the gates: the destroy gate, the ops gate with the merge guard, and the docs gate. Each command falls back to asking (or, at a stop, a warning) when the gate cannot run, so a missing Python never waves a command through. In bypass-permissions mode, where a question cannot reach the user, the fallback denies instead.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/run_hook.sh\" session_secrets.py || echo '[athena-orchestrator secrets] the loader could not run (athena-orchestrator needs Python 3.11+ on PATH, and Git Bash on Windows); no tokens loaded.'",
+            "timeout": 60,
+            "statusMessage": "Loading the project's development tokens from 1Password"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
